@@ -5,6 +5,8 @@
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/Frontend-React_19-61DAFB.svg)](https://react.dev/)
 
+![Video Subtitle Studio Desktop Interface](docs/screenshot-main-studio.png)
+
 An all-in-one local desktop workspace for extracting, translating, editing, masking, and burning subtitles onto videos.
 
 Designed for content creators, localizers, and video editors who need to translate foreign videos, replace or mask hardcoded subtitles, and export production-ready subtitled videos without relying on costly cloud APIs.
