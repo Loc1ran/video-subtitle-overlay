@@ -1,0 +1,45 @@
+{
+  "manifest_version": 3,
+  "name": "Video Subtitle Studio AI Assistant",
+  "version": "1.4.1",
+  "description": "Automated subtitle translator bridge. Connects ChatGPT, DeepSeek, Gemini, and Claude with Video Subtitle Studio without requiring API keys or on-page widgets.",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://chat.deepseek.com/*",
+    "https://deepseek.com/*",
+    "https://gemini.google.com/*",
+    "https://claude.ai/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Video Subtitle Studio AI"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://chat.deepseek.com/*",
+        "https://deepseek.com/*",
+        "https://gemini.google.com/*",
+        "https://claude.ai/*",
+        "http://127.0.0.1/*",
+        "http://localhost/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

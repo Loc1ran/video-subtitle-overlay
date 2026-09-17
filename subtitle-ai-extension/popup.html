@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Subtitle Studio AI</title>
+  <style>
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #0f172a;
+      color: #f8fafc;
+      box-sizing: border-box;
+    }
+    h2 {
+      margin: 0 0 4px 0;
+      font-size: 15px;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .desc {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 4px;
+    }
+    .dot.green { background: #10b981; }
+    .dot.red { background: #ef4444; }
+    .dot.yellow { background: #f59e0b; }
+    .btn {
+      display: block;
+      width: 100%;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      text-decoration: none;
+      cursor: pointer;
+      margin-bottom: 6px;
+      box-sizing: border-box;
+    }
+    .btn:hover { background: #2563eb; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: #334155; }
+    .btn-secondary:hover { background: #475569; }
+    .steps {
+      font-size: 11px;
+      color: #cbd5e1;
+      padding-left: 16px;
+      margin: 8px 0;
+      line-height: 1.5;
+    }
+    #action-box {
+      background: rgba(14, 165, 233, 0.1);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 12px;
+      display: none;
+    }
+    #progress-status {
+      font-size: 11px;
+      color: #38bdf8;
+      margin-top: 6px;
+      line-height: 1.4;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>🎬 Subtitle Studio AI Bridge</h2>
+  <div class="desc">Seamlessly translate video subtitles with ChatGPT, DeepSeek, Gemini & Claude!</div>
+
+  <div class="card">
+    <div class="status-row">
+      <span>Studio Server:</span>
+      <span id="server-status"><span class="dot red"></span> Checking...</span>
+    </div>
+    <div class="status-row">
+      <span>Active Project:</span>
+      <strong id="job-id">None</strong>
+    </div>
+    <div class="status-row" style="margin-bottom: 0;">
+      <span>Reasoning:</span>
+      <span style="color: #38bdf8; font-weight: 600; font-size: 11px;">🧠 Thinking Mode (ON)</span>
+    </div>
+  </div>
+
+  <!-- Active Tab Quick Action (Shown when visiting ChatGPT, DeepSeek, etc.) -->
+  <div id="action-box">
+    <div style="font-weight: 700; color: #38bdf8; font-size: 12px; margin-bottom: 4px;" id="action-tab-title">⚡ AI Chat Detected</div>
+    <div style="font-size: 11px; color: #cbd5e1; margin-bottom: 8px;">Translate active video subtitles in this tab:</div>
+    <button class="btn" id="btn-run-tab" style="background: linear-gradient(135deg, #0ea5e9, #2563eb); margin-bottom: 0;">
+      ⚡ Start Auto-Translation Here
+    </button>
+    <div id="progress-status"></div>
+  </div>
+
+  <div style="font-weight: 600; font-size: 12px; margin-bottom: 6px; color: #cbd5e1;">Launch AI Chat:</div>
+  <a href="https://chatgpt.com" target="_blank" class="btn">🤖 Open ChatGPT (chatgpt.com)</a>
+  <a href="https://chat.deepseek.com" target="_blank" class="btn btn-secondary">⚡ Open DeepSeek (deepseek.com)</a>
+  <a href="https://gemini.google.com" target="_blank" class="btn btn-secondary">✨ Open Gemini (gemini.google.com)</a>
+  <a href="http://localhost:8000" target="_blank" class="btn btn-secondary">🎬 Open Subtitle Studio Web UI</a>
+
+  <div style="margin-top: 10px; font-size: 11px; color: #94a3b8;">
+    <strong>How it works (Widget-Free):</strong>
+    <ol class="steps">
+      <li>Extract subtitles in Subtitle Studio (:8000).</li>
+      <li>Open ChatGPT or DeepSeek tab.</li>
+      <li>Open this extension popup and click <strong>"Start Auto-Translation Here"</strong>!</li>
+    </ol>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
