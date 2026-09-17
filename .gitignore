@@ -24,6 +24,9 @@ wheels/
 env/
 venv/
 ENV/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # User Data & Processing Directories
 uploads/*

@@ -1,12 +1,52 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlignCenter, AlignLeft, AlignRight, Bot, Brain, Captions, ChevronDown, ChevronLeft,
-  ChevronRight, ChevronsLeft, ChevronsRight, Circle, Clock3, Download, Eye,
-  Film, FolderOpen, GripVertical, Languages, Layers3, Link2,
-  Lock, Maximize2, Menu, Mic2, MousePointer2, Pause, Play, Plus, Redo2,
-  RotateCcw, Scissors, Search, Settings2, SkipBack, SkipForward,
-  Sparkle, Trash2, Undo2, Upload, Volume2, Wand2, ZoomIn, ZoomOut, X,
-  Check, Loader2
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Bot,
+  Brain,
+  Captions,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Circle,
+  Clock3,
+  Download,
+  Eye,
+  Film,
+  FolderOpen,
+  GripVertical,
+  Languages,
+  Layers3,
+  Link2,
+  Lock,
+  Maximize2,
+  Menu,
+  Mic2,
+  MousePointer2,
+  Pause,
+  Play,
+  Plus,
+  Redo2,
+  RotateCcw,
+  Scissors,
+  Search,
+  Settings2,
+  SkipBack,
+  SkipForward,
+  Sparkle,
+  Trash2,
+  Undo2,
+  Upload,
+  Volume2,
+  Wand2,
+  ZoomIn,
+  ZoomOut,
+  X,
+  Check,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -52,13 +92,90 @@ const FPS = 30;
 const LABEL_WIDTH = 176;
 
 const INITIAL_SEGMENTS: Segment[] = [
-  { id: 1, track: 0, start: 0.8, end: 4.9, source: "OCR", original: "A new city, a new beginning", translated: "Một thành phố mới, một khởi đầu mới", x: 50, y: 18, anchor: "center" },
-  { id: 2, track: 1, start: 2.1, end: 6.4, source: "WHISPER", original: "I thought I had everything planned.", translated: "Tôi cứ nghĩ mình đã lên kế hoạch cho tất cả.", x: 50, y: 84, anchor: "center" },
-  { id: 3, track: 1, start: 6.8, end: 10.7, source: "WHISPER", original: "But travel has a way of surprising you.", translated: "Nhưng những chuyến đi luôn biết cách khiến ta bất ngờ.", x: 50, y: 84, anchor: "center" },
-  { id: 4, track: 0, start: 8.7, end: 13.2, source: "OCR", original: "GATE 24 · DEPARTURES", translated: "CỔNG 24 · KHỞI HÀNH", x: 78, y: 20, anchor: "right" },
-  { id: 5, track: 1, start: 11.1, end: 16.2, source: "WHISPER", original: "Sometimes the wrong train takes you to the right place.", translated: "Đôi khi chuyến tàu nhầm lại đưa bạn đến đúng nơi.", x: 50, y: 84, anchor: "center" },
-  { id: 6, track: 2, start: 14.1, end: 18.5, source: "OCR", original: "Next stop: Central Station", translated: "Trạm tiếp theo: Ga Trung tâm", x: 14, y: 34, anchor: "left" },
-  { id: 7, track: 1, start: 17.1, end: 22.8, source: "WHISPER", original: "So I stopped looking at the map.", translated: "Vậy nên tôi đã thôi nhìn vào bản đồ.", x: 50, y: 84, anchor: "center" },
+  {
+    id: 1,
+    track: 0,
+    start: 0.8,
+    end: 4.9,
+    source: "OCR",
+    original: "A new city, a new beginning",
+    translated: "Một thành phố mới, một khởi đầu mới",
+    x: 50,
+    y: 18,
+    anchor: "center",
+  },
+  {
+    id: 2,
+    track: 1,
+    start: 2.1,
+    end: 6.4,
+    source: "WHISPER",
+    original: "I thought I had everything planned.",
+    translated: "Tôi cứ nghĩ mình đã lên kế hoạch cho tất cả.",
+    x: 50,
+    y: 84,
+    anchor: "center",
+  },
+  {
+    id: 3,
+    track: 1,
+    start: 6.8,
+    end: 10.7,
+    source: "WHISPER",
+    original: "But travel has a way of surprising you.",
+    translated: "Nhưng những chuyến đi luôn biết cách khiến ta bất ngờ.",
+    x: 50,
+    y: 84,
+    anchor: "center",
+  },
+  {
+    id: 4,
+    track: 0,
+    start: 8.7,
+    end: 13.2,
+    source: "OCR",
+    original: "GATE 24 · DEPARTURES",
+    translated: "CỔNG 24 · KHỞI HÀNH",
+    x: 78,
+    y: 20,
+    anchor: "right",
+  },
+  {
+    id: 5,
+    track: 1,
+    start: 11.1,
+    end: 16.2,
+    source: "WHISPER",
+    original: "Sometimes the wrong train takes you to the right place.",
+    translated: "Đôi khi chuyến tàu nhầm lại đưa bạn đến đúng nơi.",
+    x: 50,
+    y: 84,
+    anchor: "center",
+  },
+  {
+    id: 6,
+    track: 2,
+    start: 14.1,
+    end: 18.5,
+    source: "OCR",
+    original: "Next stop: Central Station",
+    translated: "Trạm tiếp theo: Ga Trung tâm",
+    x: 14,
+    y: 34,
+    anchor: "left",
+  },
+  {
+    id: 7,
+    track: 1,
+    start: 17.1,
+    end: 22.8,
+    source: "WHISPER",
+    original: "So I stopped looking at the map.",
+    translated: "Vậy nên tôi đã thôi nhìn vào bản đồ.",
+    x: 50,
+    y: 84,
+    anchor: "center",
+  },
 ];
 
 function formatTime(value: number, frames = false) {
@@ -92,9 +209,13 @@ function hexToRgb(hex: string): string {
  */
 function darkenColor(hex: string, factor = 0.12): string {
   const clean = (hex || "#000000").replace("#", "");
-  const full = clean.length === 3
-    ? clean.split("").map((c) => c + c).join("")
-    : clean.padEnd(6, "0");
+  const full =
+    clean.length === 3
+      ? clean
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : clean.padEnd(6, "0");
   const r = Math.round(parseInt(full.substring(0, 2), 16) * factor);
   const g = Math.round(parseInt(full.substring(2, 4), 16) * factor);
   const b = Math.round(parseInt(full.substring(4, 6), 16) * factor);
@@ -103,7 +224,13 @@ function darkenColor(hex: string, factor = 0.12): string {
 
 function getContrastTextColor(hex: string): string {
   const clean = (hex || "#000000").replace("#", "");
-  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean.padEnd(6, "0");
+  const full =
+    clean.length === 3
+      ? clean
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : clean.padEnd(6, "0");
   const r = parseInt(full.substring(0, 2), 16) || 0;
   const g = parseInt(full.substring(2, 4), 16) || 0;
   const b = parseInt(full.substring(4, 6), 16) || 0;
@@ -117,8 +244,20 @@ const TRACKS = [
   { name: "CALLOUTS", type: "OCR · spatial", icon: Captions },
 ];
 
-function IconButton({ label, active, ...props }: React.ComponentProps<typeof Button> & { label: string; active?: boolean }) {
-  return <Button aria-label={label} title={label} variant={active ? "active" : "ghost"} size="icon-sm" {...props} />;
+function IconButton({
+  label,
+  active,
+  ...props
+}: React.ComponentProps<typeof Button> & { label: string; active?: boolean }) {
+  return (
+    <Button
+      aria-label={label}
+      title={label}
+      variant={active ? "active" : "ghost"}
+      size="icon-sm"
+      {...props}
+    />
+  );
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -141,7 +280,7 @@ export const SUPPORTED_TARGET_LANGUAGES: { code: string; label: string }[] = [
 
 export function getLanguageLabel(code: string): string {
   const found = SUPPORTED_TARGET_LANGUAGES.find((l) => l.code === code);
-  return found ? found.label : (code ? code.toUpperCase() : "Target Language");
+  return found ? found.label : code ? code.toUpperCase() : "Target Language";
 }
 
 export function VideoSubtitleStudio() {
@@ -185,7 +324,14 @@ export function VideoSubtitleStudio() {
   const [outlineColor, setOutlineColor] = useState("#000000"); // Black stroke
   const [outlineWidth, setOutlineWidth] = useState(2);
   const [bgColor, setBgColor] = useState("#000000"); // Solid black background
-  const [detectedPalette, setDetectedPalette] = useState<string[]>(["#A0456D", "#A13967", "#DCA797", "#AA7B66", "#FFFFFF", "#000000"]);
+  const [detectedPalette, setDetectedPalette] = useState<string[]>([
+    "#A0456D",
+    "#A13967",
+    "#DCA797",
+    "#AA7B66",
+    "#FFFFFF",
+    "#000000",
+  ]);
   const [isDetectingColors, setIsDetectingColors] = useState(false);
   const [bold, setBold] = useState(true);
   const [thinkingMode, setThinkingMode] = useState(true);
@@ -210,7 +356,12 @@ export function VideoSubtitleStudio() {
     foundCount: 0,
     status: "idle",
   });
-  const [renderResult, setRenderResult] = useState<{ video_url: string; srt_url: string; ass_url: string; filename: string } | null>(null);
+  const [renderResult, setRenderResult] = useState<{
+    video_url: string;
+    srt_url: string;
+    ass_url: string;
+    filename: string;
+  } | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false);
   const [targetLang, setTargetLang] = useState("vi");
@@ -227,8 +378,14 @@ export function VideoSubtitleStudio() {
   const canvasDragRef = useRef<{ x: number; y: number } | null>(null);
   const saveTimeoutRef = useRef<number | null>(null);
 
-  const selected = useMemo(() => segments.find((s) => s.id === selectedId) ?? null, [segments, selectedId]);
-  const activeSegments = useMemo(() => segments.filter((s) => playhead >= s.start && playhead <= s.end), [segments, playhead]);
+  const selected = useMemo(
+    () => segments.find((s) => s.id === selectedId) ?? null,
+    [segments, selectedId],
+  );
+  const activeSegments = useMemo(
+    () => segments.filter((s) => playhead >= s.start && playhead <= s.end),
+    [segments, playhead],
+  );
 
   // Dynamically resolve vertical collisions ONLY between simultaneous upper title cards (y < 70)
   // Dialogue subtitles (y >= 70) MUST NEVER be displaced vertically!
@@ -321,24 +478,35 @@ export function VideoSubtitleStudio() {
       setDuration(Math.max(1, dur));
 
       if (data.info && data.info.width && data.info.height) {
-        setVideoResolution(`${data.info.width} × ${data.info.height} · ${Math.round(data.info.fps || 30)} fps`);
+        setVideoResolution(
+          `${data.info.width} × ${data.info.height} · ${Math.round(data.info.fps || 30)} fps`,
+        );
       }
 
       if (data.style) {
         if (data.style.font_size) setFontSize(Number(data.style.font_size));
         if (data.style.bg_padding) setPadding(Number(data.style.bg_padding));
-        if (data.style.border_radius !== undefined) setBorderRadius(Number(data.style.border_radius));
-        if (data.style.bg_opacity !== undefined) setOpacity(Math.round(Number(data.style.bg_opacity) * 100));
+        if (data.style.border_radius !== undefined)
+          setBorderRadius(Number(data.style.border_radius));
+        if (data.style.bg_opacity !== undefined)
+          setOpacity(Math.round(Number(data.style.bg_opacity) * 100));
         else setOpacity(100);
         if (data.style.mask_mode) {
-          setMaskMode(data.style.mask_mode === "full_bar" ? "Full-width bar" : data.style.mask_mode === "outline" ? "Text outline" : "Fitted box");
+          setMaskMode(
+            data.style.mask_mode === "full_bar"
+              ? "Full-width bar"
+              : data.style.mask_mode === "outline"
+                ? "Text outline"
+                : "Fitted box",
+          );
         }
         if (data.style.bold !== undefined) setBold(Boolean(data.style.bold));
         const loadedOutline = data.style.outline_color || "#000000";
         const savedBg = data.style.bg_color || "#000000";
         setOutlineColor(loadedOutline);
         setBgColor(savedBg);
-        if (data.style.outline_width !== undefined) setOutlineWidth(Number(data.style.outline_width));
+        if (data.style.outline_width !== undefined)
+          setOutlineWidth(Number(data.style.outline_width));
         if (data.style.text_color) setTextColor(data.style.text_color);
       }
 
@@ -350,22 +518,38 @@ export function VideoSubtitleStudio() {
         if (data.segments.length > 0) {
           const loadedSegs: Segment[] = data.segments.map((s: any) => {
             const x = s.x_pct !== undefined && s.x_pct !== null ? Number(s.x_pct) : 50;
-            const y = s.y_pct !== undefined && s.y_pct !== null ? Number(s.y_pct) : (s.track_id === 1 ? 18 : 84);
+            const y =
+              s.y_pct !== undefined && s.y_pct !== null
+                ? Number(s.y_pct)
+                : s.track_id === 1
+                  ? 18
+                  : 84;
             const anchor = "center";
-            const track = s.track_id !== undefined && s.track_id !== null ? Math.max(0, Math.min(2, s.track_id - 1)) : (y < 70 ? 0 : 1);
+            const track =
+              s.track_id !== undefined && s.track_id !== null
+                ? Math.max(0, Math.min(2, s.track_id - 1))
+                : y < 70
+                  ? 0
+                  : 1;
             return {
               id: s.id,
               track,
               start: Number(s.start),
               end: Number(s.end),
-              source: (s.track_id === 1 || y < 70) ? "OCR" : "WHISPER",
+              source: s.track_id === 1 || y < 70 ? "OCR" : "WHISPER",
               original: s.text || "",
-              translated: (s.custom_text !== undefined && s.custom_text !== null) ? s.custom_text : (s.text || ""),
+              translated:
+                s.custom_text !== undefined && s.custom_text !== null
+                  ? s.custom_text
+                  : s.text || "",
               x,
               y,
               anchor,
               outlineColor: s.outline_color || loadedOutline,
-              textColor: s.text_color || (data.style && data.style.text_color) || getContrastTextColor(s.bg_color || savedBg),
+              textColor:
+                s.text_color ||
+                (data.style && data.style.text_color) ||
+                getContrastTextColor(s.bg_color || savedBg),
               bgColor: s.bg_color || savedBg,
               boxW: s.box_w ? Number(s.box_w) : undefined,
               boxH: s.box_h ? Number(s.box_h) : undefined,
@@ -444,7 +628,9 @@ export function VideoSubtitleStudio() {
       const data = await res.json();
 
       const detectedBg = data.dominant_bg || data.dominant_outline || "#000000";
-      const detectedText = data.dominant_text || (detectedBg !== "#000000" ? getContrastTextColor(detectedBg) : "#FFFFFF");
+      const detectedText =
+        data.dominant_text ||
+        (detectedBg !== "#000000" ? getContrastTextColor(detectedBg) : "#FFFFFF");
       const detectedOutline = data.dominant_outline || detectedBg;
 
       setBgColor(detectedBg);
@@ -465,7 +651,8 @@ export function VideoSubtitleStudio() {
           const isDiag = s.y >= 70;
           const targetBg = sc.bg_color || (isDiag ? detectedBg : titleAccent);
           const targetOutline = sc.outline_color || (isDiag ? detectedOutline : titleAccent);
-          const targetText = sc.text_color || (isDiag ? detectedText : getContrastTextColor(titleAccent));
+          const targetText =
+            sc.text_color || (isDiag ? detectedText : getContrastTextColor(titleAccent));
           return {
             ...s,
             outlineColor: targetOutline,
@@ -513,7 +700,12 @@ export function VideoSubtitleStudio() {
           })),
           style: {
             font_size: fontSize,
-            mask_mode: maskMode === "Fitted box" ? "box" : maskMode === "Full-width bar" ? "full_bar" : "outline",
+            mask_mode:
+              maskMode === "Fitted box"
+                ? "box"
+                : maskMode === "Full-width bar"
+                  ? "full_bar"
+                  : "outline",
             bg_opacity: opacity / 100,
             bg_padding: padding,
             border_radius: borderRadius,
@@ -525,7 +717,12 @@ export function VideoSubtitleStudio() {
           },
           styles: {
             font_size: fontSize,
-            mask_mode: maskMode === "Fitted box" ? "box" : maskMode === "Full-width bar" ? "full_bar" : "outline",
+            mask_mode:
+              maskMode === "Fitted box"
+                ? "box"
+                : maskMode === "Full-width bar"
+                  ? "full_bar"
+                  : "outline",
             bg_opacity: opacity / 100,
             bg_padding: padding,
             border_radius: borderRadius,
@@ -551,13 +748,16 @@ export function VideoSubtitleStudio() {
   // --------------------------------------------------------------------------
   // VIDEO PLAYBACK SYNCHRONIZATION
   // --------------------------------------------------------------------------
-  const seekToTime = useCallback((time: number) => {
-    const clamped = Math.max(0, Math.min(duration, time));
-    setPlayhead(clamped);
-    if (videoRef.current) {
-      videoRef.current.currentTime = clamped;
-    }
-  }, [duration]);
+  const seekToTime = useCallback(
+    (time: number) => {
+      const clamped = Math.max(0, Math.min(duration, time));
+      setPlayhead(clamped);
+      if (videoRef.current) {
+        videoRef.current.currentTime = clamped;
+      }
+    },
+    [duration],
+  );
 
   function handleLoadedMetadata() {
     if (!videoRef.current) return;
@@ -677,7 +877,12 @@ export function VideoSubtitleStudio() {
       quickAction("Please load a video first");
       return;
     }
-    const engineLabel = engine === "WHISPER" ? "Whisper ASR" : engine === "ALL" ? "OCR + Whisper" : "Screen OCR (EasyOCR)";
+    const engineLabel =
+      engine === "WHISPER"
+        ? "Whisper ASR"
+        : engine === "ALL"
+          ? "OCR + Whisper"
+          : "Screen OCR (EasyOCR)";
     setSourceTab("transcript");
     setIsAnalyzing(true);
     setExtractionProgress({
@@ -701,7 +906,10 @@ export function VideoSubtitleStudio() {
               ...prev,
               percent: pData.progress.percent !== undefined ? pData.progress.percent : prev.percent,
               stage: pData.progress.stage || prev.stage,
-              foundCount: pData.progress.found_count !== undefined ? pData.progress.found_count : prev.foundCount,
+              foundCount:
+                pData.progress.found_count !== undefined
+                  ? pData.progress.found_count
+                  : prev.foundCount,
               status: "running",
             }));
           }
@@ -748,17 +956,34 @@ export function VideoSubtitleStudio() {
 
         const mapped: Segment[] = data.segments.map((s: any) => {
           const x = s.x_pct !== undefined && s.x_pct !== null ? Number(s.x_pct) : 50;
-          const y = s.y_pct !== undefined && s.y_pct !== null ? Number(s.y_pct) : (s.track_id === 1 ? 18 : 84);
-          const anchor = s.anchor ? (s.anchor.includes("4") ? "left" : s.anchor.includes("6") ? "right" : "center") : "center";
-          const track = s.track_id !== undefined && s.track_id !== null ? Math.max(0, Math.min(2, s.track_id - 1)) : (y < 70 ? 0 : 1);
+          const y =
+            s.y_pct !== undefined && s.y_pct !== null
+              ? Number(s.y_pct)
+              : s.track_id === 1
+                ? 18
+                : 84;
+          const anchor = s.anchor
+            ? s.anchor.includes("4")
+              ? "left"
+              : s.anchor.includes("6")
+                ? "right"
+                : "center"
+            : "center";
+          const track =
+            s.track_id !== undefined && s.track_id !== null
+              ? Math.max(0, Math.min(2, s.track_id - 1))
+              : y < 70
+                ? 0
+                : 1;
           return {
             id: s.id,
             track,
             start: Number(s.start),
             end: Number(s.end),
-            source: (s.track_id === 1 || y < 70) ? "OCR" : "WHISPER",
+            source: s.track_id === 1 || y < 70 ? "OCR" : "WHISPER",
             original: s.text || "",
-            translated: (s.custom_text !== undefined && s.custom_text !== null) ? s.custom_text : (s.text || ""),
+            translated:
+              s.custom_text !== undefined && s.custom_text !== null ? s.custom_text : s.text || "",
             x,
             y,
             anchor,
@@ -806,7 +1031,9 @@ export function VideoSubtitleStudio() {
       if (pollInterval) clearInterval(pollInterval);
       setIsAnalyzing(false);
       setTimeout(() => {
-        setExtractionProgress((prev) => (prev.isRunning ? prev : { ...prev, percent: 0, status: "idle" }));
+        setExtractionProgress((prev) =>
+          prev.isRunning ? prev : { ...prev, percent: 0, status: "idle" },
+        );
       }, 5000);
     }
   }
@@ -844,7 +1071,7 @@ export function VideoSubtitleStudio() {
 
       if (data.segments) {
         const transMap = new Map<number, string>(
-          data.segments.map((s: any) => [s.id, String(s.custom_text || s.text || "")])
+          data.segments.map((s: any) => [s.id, String(s.custom_text || s.text || "")]),
         );
         const updated: Segment[] = segments.map((s) => ({
           ...s,
@@ -876,7 +1103,9 @@ export function VideoSubtitleStudio() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          segments: [{ id: selected.id, start: selected.start, end: selected.end, text: textToTranslate }],
+          segments: [
+            { id: selected.id, start: selected.start, end: selected.end, text: textToTranslate },
+          ],
           target_lang: targetLang,
           source_lang: "auto",
         }),
@@ -905,7 +1134,12 @@ export function VideoSubtitleStudio() {
         const res = await fetch("/api/ai-job");
         if (!res.ok) return;
         const data = await res.json();
-        if (data && data.job && data.job.status === "completed" && data.job.file_id === currentFileId) {
+        if (
+          data &&
+          data.job &&
+          data.job.status === "completed" &&
+          data.job.file_id === currentFileId
+        ) {
           if (aiJobPollRef.current) {
             clearInterval(aiJobPollRef.current);
             aiJobPollRef.current = null;
@@ -920,7 +1154,8 @@ export function VideoSubtitleStudio() {
               if (loadData.style.outline_color) setOutlineColor(loadData.style.outline_color);
               if (loadData.style.font_size) setFontSize(Number(loadData.style.font_size));
               if (loadData.style.bg_padding) setPadding(Number(loadData.style.bg_padding));
-              if (loadData.style.border_radius !== undefined) setBorderRadius(Number(loadData.style.border_radius));
+              if (loadData.style.border_radius !== undefined)
+                setBorderRadius(Number(loadData.style.border_radius));
             }
             if (loadData.segments && Array.isArray(loadData.segments)) {
               const fallbackBg = loadData.style?.bg_color || bgColor || "#000000";
@@ -929,14 +1164,18 @@ export function VideoSubtitleStudio() {
 
               const mapped: Segment[] = loadData.segments.map((s: any) => ({
                 id: s.id,
-                track: s.track_id ? Math.max(0, Math.min(2, s.track_id - 1)) : (s.y_pct && s.y_pct < 35 ? 0 : 1),
+                track: s.track_id
+                  ? Math.max(0, Math.min(2, s.track_id - 1))
+                  : s.y_pct && s.y_pct < 35
+                    ? 0
+                    : 1,
                 start: s.start,
                 end: s.end,
                 source: s.track_id === 1 ? "OCR" : s.track_id === 3 ? "OCR" : "WHISPER",
                 original: s.text || "",
                 translated: s.custom_text || s.text || "",
                 x: s.x_pct !== undefined && s.x_pct !== null ? s.x_pct : 50,
-                y: s.y_pct !== undefined && s.y_pct !== null ? s.y_pct : (s.track_id === 1 ? 18 : 84),
+                y: s.y_pct !== undefined && s.y_pct !== null ? s.y_pct : s.track_id === 1 ? 18 : 84,
                 outlineColor: s.outline_color || fallbackOutline,
                 textColor: s.text_color || fallbackText,
                 bgColor: s.bg_color || fallbackBg,
@@ -970,12 +1209,16 @@ export function VideoSubtitleStudio() {
       return;
     }
 
-    const serviceName = targetService === "chatgpt" ? "ChatGPT" : targetService === "claude" ? "Claude" : "DeepSeek";
-    const serviceUrl = targetService === "chatgpt"
-      ? (thinkingMode ? "https://chatgpt.com/?model=o3-mini&ref=vss_auto" : "https://chatgpt.com/?ref=vss_auto")
-      : targetService === "claude"
-      ? "https://claude.ai/new?ref=vss_auto"
-      : "https://chat.deepseek.com/?ref=vss_auto";
+    const serviceName =
+      targetService === "chatgpt" ? "ChatGPT" : targetService === "claude" ? "Claude" : "DeepSeek";
+    const serviceUrl =
+      targetService === "chatgpt"
+        ? thinkingMode
+          ? "https://chatgpt.com/?model=o3-mini&ref=vss_auto"
+          : "https://chatgpt.com/?ref=vss_auto"
+        : targetService === "claude"
+          ? "https://claude.ai/new?ref=vss_auto"
+          : "https://chat.deepseek.com/?ref=vss_auto";
 
     const lines = segments.map((s) => `#${s.id}: ${s.original || s.translated}`).join("\n");
     const prompt = buildLocalizedAiPrompt(targetLang, thinkingMode, lines);
@@ -1013,7 +1256,9 @@ export function VideoSubtitleStudio() {
     // 3. Open the AI chat tab with the auto-trigger parameter
     window.open(serviceUrl, "_blank");
 
-    quickAction(`Opening ${serviceName}... Extension will auto-type & submit (or press Ctrl+V to paste)`);
+    quickAction(
+      `Opening ${serviceName}... Extension will auto-type & submit (or press Ctrl+V to paste)`,
+    );
     startAiJobWatcher();
   }
 
@@ -1027,14 +1272,16 @@ export function VideoSubtitleStudio() {
     }
     let content = "";
     let mimeType = "text/plain";
-    let filename = `${videoFilename.replace(/\.[^/.]+$/, "")}.${format}`;
+    const filename = `${videoFilename.replace(/\.[^/.]+$/, "")}.${format}`;
 
     if (format === "srt") {
-      content = segments.map((s, idx) => {
-        const startStr = formatSrtTime(s.start);
-        const endStr = formatSrtTime(s.end);
-        return `${idx + 1}\n${startStr} --> ${endStr}\n${s.translated || s.original}\n\n`;
-      }).join("");
+      content = segments
+        .map((s, idx) => {
+          const startStr = formatSrtTime(s.start);
+          const endStr = formatSrtTime(s.end);
+          return `${idx + 1}\n${startStr} --> ${endStr}\n${s.translated || s.original}\n\n`;
+        })
+        .join("");
     } else if (format === "json") {
       content = JSON.stringify(segments, null, 2);
       mimeType = "application/json";
@@ -1062,14 +1309,16 @@ export function VideoSubtitleStudio() {
   }
 
   function generateAssContent() {
-    let header = `[Script Info]\nTitle: Video Subtitle Studio Export\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, BackColour, Bold, Alignment, MarginV\nStyle: Default,Arial,${fontSize},&H00FFFFFF,&H00000000,1,2,30\n\n[Events]\nFormat: Layer, Start, End, Style, Text\n`;
-    const dialogues = segments.map((s) => {
-      const st = formatAssTime(s.start);
-      const et = formatAssTime(s.end);
-      const an = s.anchor === "left" ? "\\an4" : s.anchor === "right" ? "\\an6" : "\\an5";
-      const pos = `{\\pos(${Math.round(s.x * 19.2)},${Math.round(s.y * 10.8)})${an}}`;
-      return `Dialogue: 0,${st},${et},Default,${pos}${s.translated || s.original}`;
-    }).join("\n");
+    const header = `[Script Info]\nTitle: Video Subtitle Studio Export\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, BackColour, Bold, Alignment, MarginV\nStyle: Default,Arial,${fontSize},&H00FFFFFF,&H00000000,1,2,30\n\n[Events]\nFormat: Layer, Start, End, Style, Text\n`;
+    const dialogues = segments
+      .map((s) => {
+        const st = formatAssTime(s.start);
+        const et = formatAssTime(s.end);
+        const an = s.anchor === "left" ? "\\an4" : s.anchor === "right" ? "\\an6" : "\\an5";
+        const pos = `{\\pos(${Math.round(s.x * 19.2)},${Math.round(s.y * 10.8)})${an}}`;
+        return `Dialogue: 0,${st},${et},Default,${pos}${s.translated || s.original}`;
+      })
+      .join("\n");
     return header + dialogues;
   }
 
@@ -1115,7 +1364,12 @@ export function VideoSubtitleStudio() {
         style: {
           font_size: fontSize,
           font_name: "Arial",
-          mask_mode: maskMode === "Fitted box" ? "box" : maskMode === "Full-width bar" ? "full_bar" : "outline",
+          mask_mode:
+            maskMode === "Fitted box"
+              ? "box"
+              : maskMode === "Full-width bar"
+                ? "full_bar"
+                : "outline",
           bg_opacity: opacity / 100,
           bg_padding: padding,
           border_radius: borderRadius,
@@ -1146,14 +1400,19 @@ export function VideoSubtitleStudio() {
   // --------------------------------------------------------------------------
   // SEGMENT MUTATIONS
   // --------------------------------------------------------------------------
-  const updateSelected = useCallback((patch: Partial<Segment>) => {
-    if (selectedId === null) return;
-    setSegments((items) => {
-      const updated = items.map((item) => (item.id === selectedId ? { ...item, ...patch } : item));
-      pushHistory(updated);
-      return updated;
-    });
-  }, [selectedId]);
+  const updateSelected = useCallback(
+    (patch: Partial<Segment>) => {
+      if (selectedId === null) return;
+      setSegments((items) => {
+        const updated = items.map((item) =>
+          item.id === selectedId ? { ...item, ...patch } : item,
+        );
+        pushHistory(updated);
+        return updated;
+      });
+    },
+    [selectedId],
+  );
 
   const splitSelected = useCallback(() => {
     if (!selected || playhead <= selected.start + 0.15 || playhead >= selected.end - 0.15) {
@@ -1190,7 +1449,7 @@ export function VideoSubtitleStudio() {
               original: `${s.original} ${adjacent.original}`,
               translated: `${s.translated} ${adjacent.translated}`,
             }
-          : s
+          : s,
       );
     setSegments(updated);
     pushHistory(updated);
@@ -1256,10 +1515,20 @@ export function VideoSubtitleStudio() {
   // --------------------------------------------------------------------------
   // TIMELINE DRAG & RESIZE
   // --------------------------------------------------------------------------
-  function beginTimelineDrag(event: React.PointerEvent, segment: Segment, kind: NonNullable<DragState>["kind"]) {
+  function beginTimelineDrag(
+    event: React.PointerEvent,
+    segment: Segment,
+    kind: NonNullable<DragState>["kind"],
+  ) {
     event.stopPropagation();
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-    dragRef.current = { id: segment.id, kind, originX: event.clientX, start: segment.start, end: segment.end };
+    dragRef.current = {
+      id: segment.id,
+      kind,
+      originX: event.clientX,
+      start: segment.start,
+      end: segment.end,
+    };
     setSelectedId(segment.id);
   }
 
@@ -1282,7 +1551,7 @@ export function VideoSubtitleStudio() {
           return { ...s, start: Math.max(0, Math.min(drag.end - 0.2, drag.start + delta)) };
         }
         return { ...s, end: Math.min(duration, Math.max(drag.start + 0.2, drag.end + delta)) };
-      })
+      }),
     );
   }
 
@@ -1313,27 +1582,44 @@ export function VideoSubtitleStudio() {
   function moveCanvasDrag(event: React.PointerEvent) {
     if (!canvasDragRef.current || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const newX = Math.round(Math.max(4, Math.min(96, ((event.clientX - rect.left) / rect.width) * 100)));
-    const newY = Math.round(Math.max(5, Math.min(95, ((event.clientY - rect.top) / rect.height) * 100)));
+    const newX = Math.round(
+      Math.max(4, Math.min(96, ((event.clientX - rect.left) / rect.width) * 100)),
+    );
+    const newY = Math.round(
+      Math.max(5, Math.min(95, ((event.clientY - rect.top) / rect.height) * 100)),
+    );
     updateSelected({ x: newX, y: newY });
   }
 
   const filteredTranscriptSegments = useMemo(() => {
     if (!transcriptSearch.trim()) return segments;
     const q = transcriptSearch.toLowerCase();
-    return segments.filter((s) => s.original.toLowerCase().includes(q) || s.translated.toLowerCase().includes(q));
+    return segments.filter(
+      (s) => s.original.toLowerCase().includes(q) || s.translated.toLowerCase().includes(q),
+    );
   }, [segments, transcriptSearch]);
 
   return (
     <main className="studio-shell">
       {/* Hidden File Input */}
-      <input type="file" ref={fileInputRef} className="hidden" accept="video/*" onChange={handleFileUpload} />
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        accept="video/*"
+        onChange={handleFileUpload}
+      />
 
       {/* TOPBAR */}
       <header className="topbar">
         <div className="brand-lockup">
-          <div className="brand-mark"><Captions size={17} /></div>
-          <div><strong>Video Subtitle Studio</strong><span>LOCAL WORKSPACE</span></div>
+          <div className="brand-mark">
+            <Captions size={17} />
+          </div>
+          <div>
+            <strong>Video Subtitle Studio</strong>
+            <span>LOCAL WORKSPACE</span>
+          </div>
         </div>
 
         {/* Project Selector Pill */}
@@ -1350,14 +1636,19 @@ export function VideoSubtitleStudio() {
           </button>
           {showProjectsDropdown && (
             <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-64 bg-popover border border-border rounded shadow-xl z-50 p-1">
-              <div className="text-[10px] text-muted-foreground px-2 py-1 uppercase font-semibold">Recent Projects</div>
+              <div className="text-[10px] text-muted-foreground px-2 py-1 uppercase font-semibold">
+                Recent Projects
+              </div>
               {recentVideos.length === 0 ? (
                 <div className="text-xs text-muted-foreground p-2">No projects yet</div>
               ) : (
                 recentVideos.map((p) => (
                   <button
                     key={p.file_id}
-                    className={cn("w-full text-left px-2 py-1.5 text-xs rounded hover:bg-secondary truncate block", currentFileId === p.file_id && "text-primary font-medium")}
+                    className={cn(
+                      "w-full text-left px-2 py-1.5 text-xs rounded hover:bg-secondary truncate block",
+                      currentFileId === p.file_id && "text-primary font-medium",
+                    )}
                     onClick={() => {
                       loadProject(p.file_id);
                       setShowProjectsDropdown(false);
@@ -1384,8 +1675,16 @@ export function VideoSubtitleStudio() {
 
         {/* Topbar Actions */}
         <div className="topbar-actions">
-          <IconButton label="Undo (Ctrl+Z)" onClick={undo} disabled={historyIndex === 0}><Undo2 size={15} /></IconButton>
-          <IconButton label="Redo (Ctrl+Shift+Z)" onClick={redo} disabled={historyIndex >= history.length - 1}><Redo2 size={15} /></IconButton>
+          <IconButton label="Undo (Ctrl+Z)" onClick={undo} disabled={historyIndex === 0}>
+            <Undo2 size={15} />
+          </IconButton>
+          <IconButton
+            label="Redo (Ctrl+Shift+Z)"
+            onClick={redo}
+            disabled={historyIndex >= history.length - 1}
+          >
+            <Redo2 size={15} />
+          </IconButton>
           <span className="topbar-divider" />
 
           {/* Export Subtitles Dropdown */}
@@ -1395,9 +1694,24 @@ export function VideoSubtitleStudio() {
             </Button>
             {showExportMenu && (
               <div className="absolute right-0 top-full mt-1 w-44 bg-popover border border-border rounded shadow-xl z-50 p-1">
-                <button className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-secondary block" onClick={() => exportSubtitles("srt")}>SubRip (.srt)</button>
-                <button className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-secondary block" onClick={() => exportSubtitles("ass")}>Advanced SSA (.ass)</button>
-                <button className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-secondary block" onClick={() => exportSubtitles("json")}>JSON format (.json)</button>
+                <button
+                  className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-secondary block"
+                  onClick={() => exportSubtitles("srt")}
+                >
+                  SubRip (.srt)
+                </button>
+                <button
+                  className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-secondary block"
+                  onClick={() => exportSubtitles("ass")}
+                >
+                  Advanced SSA (.ass)
+                </button>
+                <button
+                  className="w-full text-left px-2 py-1.5 text-xs rounded hover:bg-secondary block"
+                  onClick={() => exportSubtitles("json")}
+                >
+                  JSON format (.json)
+                </button>
               </div>
             )}
           </div>
@@ -1405,18 +1719,39 @@ export function VideoSubtitleStudio() {
           <Button size="sm" onClick={burnAndExportVideo} disabled={isRendering}>
             <Sparkle size={14} /> {isRendering ? "Burning..." : "Burn & export"}
           </Button>
-          <IconButton label="Workspace menu" onClick={() => quickAction("Workspace menu ready")}><Menu size={16} /></IconButton>
+          <IconButton label="Workspace menu" onClick={() => quickAction("Workspace menu ready")}>
+            <Menu size={16} />
+          </IconButton>
         </div>
       </header>
 
       {/* WORKSPACE 4-PANE GRID */}
-      <section className={cn("workspace", !leftOpen && "left-collapsed", !rightOpen && "right-collapsed", !timelineOpen && "timeline-collapsed")}>
+      <section
+        className={cn(
+          "workspace",
+          !leftOpen && "left-collapsed",
+          !rightOpen && "right-collapsed",
+          !timelineOpen && "timeline-collapsed",
+        )}
+      >
         {/* LEFT DOCK: MEDIA & TRANSCRIPT */}
         <aside className="source-panel panel">
           <div className="panel-tabs">
-            <button className={cn(sourceTab === "media" && "active")} onClick={() => setSourceTab("media")}>Media</button>
-            <button className={cn(sourceTab === "transcript" && "active")} onClick={() => setSourceTab("transcript")}>Transcript</button>
-            <IconButton label="Collapse source panel" onClick={() => setLeftOpen(false)}><ChevronLeft size={14} /></IconButton>
+            <button
+              className={cn(sourceTab === "media" && "active")}
+              onClick={() => setSourceTab("media")}
+            >
+              Media
+            </button>
+            <button
+              className={cn(sourceTab === "transcript" && "active")}
+              onClick={() => setSourceTab("transcript")}
+            >
+              Transcript
+            </button>
+            <IconButton label="Collapse source panel" onClick={() => setLeftOpen(false)}>
+              <ChevronLeft size={14} />
+            </IconButton>
           </div>
 
           {sourceTab === "transcript" ? (
@@ -1431,7 +1766,9 @@ export function VideoSubtitleStudio() {
                     onChange={(e) => setTranscriptSearch(e.target.value)}
                   />
                 </div>
-                <IconButton label="Import video" onClick={() => fileInputRef.current?.click()}><Upload size={14} /></IconButton>
+                <IconButton label="Import video" onClick={() => fileInputRef.current?.click()}>
+                  <Upload size={14} />
+                </IconButton>
               </div>
 
               {/* Extraction Strip */}
@@ -1443,7 +1780,9 @@ export function VideoSubtitleStudio() {
                   title="Extract On-Screen Subtitles with EasyOCR"
                 >
                   <Eye size={14} />
-                  <span>Screen OCR<small>2D bands</small></span>
+                  <span>
+                    Screen OCR<small>2D bands</small>
+                  </span>
                 </button>
                 <button
                   className={cn("extractor", isAnalyzing && "opacity-50")}
@@ -1452,7 +1791,9 @@ export function VideoSubtitleStudio() {
                   title="Transcribe Audio Speech with Whisper"
                 >
                   <Mic2 size={14} />
-                  <span>Whisper<small>Auto language</small></span>
+                  <span>
+                    Whisper<small>Auto language</small>
+                  </span>
                 </button>
               </div>
 
@@ -1479,7 +1820,9 @@ export function VideoSubtitleStudio() {
                   <div className="w-full h-1.5 bg-secondary rounded-full overflow-hidden">
                     <div
                       className="h-full bg-editor-teal rounded-full transition-all duration-300 ease-out"
-                      style={{ width: `${Math.min(100, Math.max(0, extractionProgress.percent))}%` }}
+                      style={{
+                        width: `${Math.min(100, Math.max(0, extractionProgress.percent))}%`,
+                      }}
                     />
                   </div>
 
@@ -1499,7 +1842,17 @@ export function VideoSubtitleStudio() {
               <div className="transcript-summary">
                 <span>{segments.length} SEGMENTS</span>
                 <span>{targetLang.toUpperCase()} TARGET</span>
-                <Button variant="ghost" size="sm" onClick={() => { if (confirm("Clear all subtitles?")) { setSegments([]); pushHistory([]); setSelectedId(null); } }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (confirm("Clear all subtitles?")) {
+                      setSegments([]);
+                      pushHistory([]);
+                      setSelectedId(null);
+                    }
+                  }}
+                >
                   <RotateCcw size={12} /> Reset
                 </Button>
               </div>
@@ -1512,7 +1865,7 @@ export function VideoSubtitleStudio() {
                     segment.original &&
                     segment.translated.trim() !== "" &&
                     segment.original.trim() !== "" &&
-                    segment.translated.trim() !== segment.original.trim()
+                    segment.translated.trim() !== segment.original.trim(),
                   );
                   return (
                     <button
@@ -1529,9 +1882,7 @@ export function VideoSubtitleStudio() {
                       </div>
                       <div>
                         <p>{segment.original || segment.translated}</p>
-                        {hasRowTranslation && (
-                          <p className="translated">{segment.translated}</p>
-                        )}
+                        {hasRowTranslation && <p className="translated">{segment.translated}</p>}
                       </div>
                     </button>
                   );
@@ -1549,7 +1900,9 @@ export function VideoSubtitleStudio() {
                     onChange={(e) => setTargetLang(e.target.value)}
                   >
                     {SUPPORTED_TARGET_LANGUAGES.map((lang) => (
-                      <option key={lang.code} value={lang.code}>{lang.label}</option>
+                      <option key={lang.code} value={lang.code}>
+                        {lang.label}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1562,7 +1915,10 @@ export function VideoSubtitleStudio() {
                       className="accent-editor-teal rounded"
                     />
                     <span className="flex items-center gap-1 font-medium text-foreground">
-                      <Brain size={13} className={thinkingMode ? "text-editor-teal" : "text-muted-foreground"} />
+                      <Brain
+                        size={13}
+                        className={thinkingMode ? "text-editor-teal" : "text-muted-foreground"}
+                      />
                       Thinking Mode
                     </span>
                   </label>
@@ -1571,13 +1927,28 @@ export function VideoSubtitleStudio() {
                   </span>
                 </div>
                 <div className="bridge-actions grid grid-cols-3 gap-1">
-                  <Button variant="outline" size="sm" onClick={() => launchAiTranslation("chatgpt")} title="Open ChatGPT in new tab & auto-submit">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => launchAiTranslation("chatgpt")}
+                    title="Open ChatGPT in new tab & auto-submit"
+                  >
                     <Bot size={13} /> ChatGPT
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => launchAiTranslation("claude")} title="Open Claude in new tab & auto-submit">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => launchAiTranslation("claude")}
+                    title="Open Claude in new tab & auto-submit"
+                  >
                     Claude
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => launchAiTranslation("deepseek")} title="Open DeepSeek in new tab & auto-submit">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => launchAiTranslation("deepseek")}
+                    title="Open DeepSeek in new tab & auto-submit"
+                  >
                     DeepSeek
                   </Button>
                 </div>
@@ -1592,7 +1963,8 @@ export function VideoSubtitleStudio() {
                   </button>
                 </div>
                 <Button size="sm" onClick={batchTranslate} disabled={isTranslating}>
-                  <Wand2 size={13} /> {isTranslating ? "Translating..." : "Batch translate all (Local)"}
+                  <Wand2 size={13} />{" "}
+                  {isTranslating ? "Translating..." : "Batch translate all (Local)"}
                 </Button>
               </div>
             </>
@@ -1623,7 +1995,11 @@ export function VideoSubtitleStudio() {
         </aside>
 
         {!leftOpen && (
-          <button className="panel-restore left" onClick={() => setLeftOpen(true)} title="Show source panel">
+          <button
+            className="panel-restore left"
+            onClick={() => setLeftOpen(true)}
+            title="Show source panel"
+          >
             <ChevronRight size={15} />
           </button>
         )}
@@ -1666,7 +2042,10 @@ export function VideoSubtitleStudio() {
             onDrop={handleFileDrop}
             onClick={(e) => {
               // Clicking outside of subtitle overlays deselects active segment
-              if (!(e.target as HTMLElement).closest(".subtitle-overlay") && !(e.target as HTMLElement).closest(".overlay-bounds")) {
+              if (
+                !(e.target as HTMLElement).closest(".subtitle-overlay") &&
+                !(e.target as HTMLElement).closest(".overlay-bounds")
+              ) {
                 setSelectedId(null);
               }
             }}
@@ -1694,7 +2073,9 @@ export function VideoSubtitleStudio() {
                     <Loader2 size={13} className="animate-spin text-editor-teal" />
                     <span>{extractionProgress.engine}</span>
                     <span className="text-white/40">·</span>
-                    <span className="font-mono text-editor-teal font-bold">{extractionProgress.percent}%</span>
+                    <span className="font-mono text-editor-teal font-bold">
+                      {extractionProgress.percent}%
+                    </span>
                     {extractionProgress.foundCount > 0 && (
                       <>
                         <span className="text-white/40">·</span>
@@ -1707,7 +2088,9 @@ export function VideoSubtitleStudio() {
                   <div className="w-44 h-1 bg-white/20 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-editor-teal transition-all duration-300 rounded-full"
-                      style={{ width: `${Math.min(100, Math.max(0, extractionProgress.percent))}%` }}
+                      style={{
+                        width: `${Math.min(100, Math.max(0, extractionProgress.percent))}%`,
+                      }}
                     />
                   </div>
                 </div>
@@ -1729,9 +2112,16 @@ export function VideoSubtitleStudio() {
                 const isSelected = segment.id === selectedId;
                 const isLeft = segment.anchor === "left";
                 const isRight = segment.anchor === "right";
-                const justify = isLeft ? "translateX(0)" : isRight ? "translateX(-100%)" : "translateX(-50%)";
+                const justify = isLeft
+                  ? "translateX(0)"
+                  : isRight
+                    ? "translateX(-100%)"
+                    : "translateX(-50%)";
                 const leftPos = `${segment.x}%`;
-                const textToShow = (segment.translated !== undefined && segment.translated !== null) ? segment.translated : segment.original;
+                const textToShow =
+                  segment.translated !== undefined && segment.translated !== null
+                    ? segment.translated
+                    : segment.original;
                 if (!textToShow.trim()) return null;
 
                 const isTitle = segment.track === 0 || segment.y < 70;
@@ -1742,7 +2132,7 @@ export function VideoSubtitleStudio() {
                 const yPos = segment.displayY !== undefined ? segment.displayY : segment.y;
                 const titleFontSize = Math.min(
                   Math.max(fontSize + 4, 28),
-                  textToShow.length > 40 ? 22 : textToShow.length > 20 ? 25 : 32
+                  textToShow.length > 40 ? 22 : textToShow.length > 20 ? 25 : 32,
                 );
                 const currentFontSize = isTitle ? titleFontSize : fontSize;
 
@@ -1753,28 +2143,49 @@ export function VideoSubtitleStudio() {
                 const lineCount = lines.length;
 
                 // Auto-scale width to ALWAYS comfortably fit the text on one line without wrapping
-                const naturalTextW = Math.round(maxLineChars * (currentFontSize * 0.62) + padding * 3.5);
+                const naturalTextW = Math.round(
+                  maxLineChars * (currentFontSize * 0.62) + padding * 3.5,
+                );
                 const targetW = segment.boxW ? Math.round(segment.boxW + 24) : naturalTextW;
                 // ALWAYS use Math.max so the box dynamically auto-scales wider to fit translated sentences on a single line!
                 const scaledMinWidth = Math.max(naturalTextW, targetW, isTitle ? 160 : 100);
 
                 const naturalTextH = Math.round(lineCount * currentFontSize * 1.4 + padding * 1.8);
                 const scaledMinHeight = segment.boxH
-                  ? Math.min(Math.round(segment.boxH + 8), Math.max(naturalTextH, isTitle ? 60 : 44))
-                  : (isTitle ? "56px" : undefined);
+                  ? Math.min(
+                      Math.round(segment.boxH + 8),
+                      Math.max(naturalTextH, isTitle ? 60 : 44),
+                    )
+                  : isTitle
+                    ? "56px"
+                    : undefined;
 
                 return (
                   <div
                     key={segment.id}
-                    className={cn("subtitle-overlay cursor-pointer", isSelected && "selected", segment.track === 0 && "title-overlay")}
+                    className={cn(
+                      "subtitle-overlay cursor-pointer",
+                      isSelected && "selected",
+                      segment.track === 0 && "title-overlay",
+                    )}
                     style={{
                       left: leftPos,
                       top: `${yPos}%`,
-                      transform: (segment.anchor === "left" && !segment.boxW) ? "translateX(0) translateY(-50%)" : (segment.anchor === "right" && !segment.boxW) ? "translateX(-100%) translateY(-50%)" : "translate(-50%, -50%)",
+                      transform:
+                        segment.anchor === "left" && !segment.boxW
+                          ? "translateX(0) translateY(-50%)"
+                          : segment.anchor === "right" && !segment.boxW
+                            ? "translateX(-100%) translateY(-50%)"
+                            : "translate(-50%, -50%)",
                       fontSize: `${currentFontSize}px`,
                       fontWeight: bold ? 700 : 600,
                       lineHeight: 1.35,
-                      textAlign: segment.anchor === "left" ? "left" : segment.anchor === "right" ? "right" : "center",
+                      textAlign:
+                        segment.anchor === "left"
+                          ? "left"
+                          : segment.anchor === "right"
+                            ? "right"
+                            : "center",
                       zIndex: isSelected ? 40 : 25,
                       width: "max-content",
                       maxWidth: isTitle ? "680px" : "92%",
@@ -1790,18 +2201,35 @@ export function VideoSubtitleStudio() {
                         display: "inline-flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        backgroundColor: maskMode === "Fitted box" || maskMode === "Full-width bar"
-                          ? `rgba(${hexToRgb(segBg)}, 1)`
-                          : "transparent",
-                        padding: maskMode === "Fitted box"
-                          ? (isTitle ? `${Math.max(padding + 2, 14)}px 24px` : `${padding}px ${Math.max(Math.round(padding * 2), 22)}px`)
-                          : maskMode === "Full-width bar" ? `${padding}px 16px` : "4px 8px",
+                        backgroundColor:
+                          maskMode === "Fitted box" || maskMode === "Full-width bar"
+                            ? `rgba(${hexToRgb(segBg)}, 1)`
+                            : "transparent",
+                        padding:
+                          maskMode === "Fitted box"
+                            ? isTitle
+                              ? `${Math.max(padding + 2, 14)}px 24px`
+                              : `${padding}px ${Math.max(Math.round(padding * 2), 22)}px`
+                            : maskMode === "Full-width bar"
+                              ? `${padding}px 16px`
+                              : "4px 8px",
                         minWidth: maskMode === "Full-width bar" ? undefined : `${scaledMinWidth}px`,
-                        minHeight: maskMode === "Full-width bar" ? undefined : (typeof scaledMinHeight === "number" ? `${scaledMinHeight}px` : scaledMinHeight),
-                        borderRadius: maskMode === "Fitted box" ? (borderRadius >= 50 ? "9999px" : `${borderRadius}px`) : "0px",
-                        border: (maskMode === "Fitted box" && outlineWidth > 0)
-                          ? `${outlineWidth}px solid ${segOutline}`
-                          : "none",
+                        minHeight:
+                          maskMode === "Full-width bar"
+                            ? undefined
+                            : typeof scaledMinHeight === "number"
+                              ? `${scaledMinHeight}px`
+                              : scaledMinHeight,
+                        borderRadius:
+                          maskMode === "Fitted box"
+                            ? borderRadius >= 50
+                              ? "9999px"
+                              : `${borderRadius}px`
+                            : "0px",
+                        border:
+                          maskMode === "Fitted box" && outlineWidth > 0
+                            ? `${outlineWidth}px solid ${segOutline}`
+                            : "none",
                         color: segText,
                         maxWidth: isTitle ? "680px" : "92%",
                         width: "max-content",
@@ -1820,11 +2248,17 @@ export function VideoSubtitleStudio() {
                         aria-label="Drag subtitle position"
                         onPointerDown={beginCanvasDrag}
                         onPointerMove={moveCanvasDrag}
-                        onPointerUp={() => { canvasDragRef.current = null; }}
+                        onPointerUp={() => {
+                          canvasDragRef.current = null;
+                        }}
                       >
-                        <i className="handle tl" /><i className="handle tr" />
-                        <i className="handle bl" /><i className="handle br" />
-                        <b>{Math.round(segment.x)}%, {Math.round(segment.y)}%</b>
+                        <i className="handle tl" />
+                        <i className="handle tr" />
+                        <i className="handle bl" />
+                        <i className="handle br" />
+                        <b>
+                          {Math.round(segment.x)}%, {Math.round(segment.y)}%
+                        </b>
                       </button>
                     )}
                   </div>
@@ -1832,7 +2266,8 @@ export function VideoSubtitleStudio() {
               })}
 
               <div className="canvas-guidance">
-                <MousePointer2 size={12} /> Drag selected text to reposition · Click background to deselect
+                <MousePointer2 size={12} /> Drag selected text to reposition · Click background to
+                deselect
               </div>
             </div>
           </div>
@@ -1854,23 +2289,40 @@ export function VideoSubtitleStudio() {
             </div>
 
             <div className="transport-main">
-              <IconButton label="Seek to Start" onClick={() => seekToTime(0)}><ChevronsLeft size={15} /></IconButton>
-              <IconButton label="Previous frame" onClick={() => seekToTime(playhead - 1 / FPS)}><SkipBack size={15} /></IconButton>
-              <Button className="play-button" size="icon" onClick={togglePlayPause} aria-label={playing ? "Pause" : "Play"}>
+              <IconButton label="Seek to Start" onClick={() => seekToTime(0)}>
+                <ChevronsLeft size={15} />
+              </IconButton>
+              <IconButton label="Previous frame" onClick={() => seekToTime(playhead - 1 / FPS)}>
+                <SkipBack size={15} />
+              </IconButton>
+              <Button
+                className="play-button"
+                size="icon"
+                onClick={togglePlayPause}
+                aria-label={playing ? "Pause" : "Play"}
+              >
                 {playing ? <Pause size={17} /> : <Play size={17} />}
               </Button>
-              <IconButton label="Next frame" onClick={() => seekToTime(playhead + 1 / FPS)}><SkipForward size={15} /></IconButton>
-              <IconButton label="Seek to End" onClick={() => seekToTime(duration)}><ChevronsRight size={15} /></IconButton>
+              <IconButton label="Next frame" onClick={() => seekToTime(playhead + 1 / FPS)}>
+                <SkipForward size={15} />
+              </IconButton>
+              <IconButton label="Seek to End" onClick={() => seekToTime(duration)}>
+                <ChevronsRight size={15} />
+              </IconButton>
             </div>
 
             <div className="transport-side right">
               <button
-                onClick={() => handleSpeedChange(speed === 2 ? 0.5 : speed === 0.5 ? 1 : speed === 1 ? 1.5 : 2)}
+                onClick={() =>
+                  handleSpeedChange(speed === 2 ? 0.5 : speed === 0.5 ? 1 : speed === 1 ? 1.5 : 2)
+                }
                 title="Playback Speed"
               >
                 {speed}×
               </button>
-              <IconButton label="Loop segment" active={loop} onClick={() => setLoop((v) => !v)}><RotateCcw size={14} /></IconButton>
+              <IconButton label="Loop segment" active={loop} onClick={() => setLoop((v) => !v)}>
+                <RotateCcw size={14} />
+              </IconButton>
             </div>
           </div>
         </section>
@@ -1878,9 +2330,21 @@ export function VideoSubtitleStudio() {
         {/* RIGHT DOCK: INSPECTOR & STYLE */}
         <aside className="inspector-panel panel">
           <div className="panel-tabs">
-            <button className={cn(inspectorTab === "segment" && "active")} onClick={() => setInspectorTab("segment")}>Inspector</button>
-            <button className={cn(inspectorTab === "style" && "active")} onClick={() => setInspectorTab("style")}>Style</button>
-            <IconButton label="Collapse inspector" onClick={() => setRightOpen(false)}><ChevronRight size={14} /></IconButton>
+            <button
+              className={cn(inspectorTab === "segment" && "active")}
+              onClick={() => setInspectorTab("segment")}
+            >
+              Inspector
+            </button>
+            <button
+              className={cn(inspectorTab === "style" && "active")}
+              onClick={() => setInspectorTab("style")}
+            >
+              Style
+            </button>
+            <IconButton label="Collapse inspector" onClick={() => setRightOpen(false)}>
+              <ChevronRight size={14} />
+            </IconButton>
           </div>
 
           {selected ? (
@@ -1892,9 +2356,13 @@ export function VideoSubtitleStudio() {
                   </div>
                   <div>
                     <strong>Segment {String(selected.id).padStart(2, "0")}</strong>
-                    <span>{selected.source} · Track {selected.track + 1}</span>
+                    <span>
+                      {selected.source} · Track {selected.track + 1}
+                    </span>
                   </div>
-                  <span className="sync-state"><Link2 size={11} /> Synced</span>
+                  <span className="sync-state">
+                    <Link2 size={11} /> Synced
+                  </span>
                   <button
                     className="text-xs text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded ml-1"
                     title="Deselect Segment (Esc)"
@@ -1942,7 +2410,7 @@ export function VideoSubtitleStudio() {
                       selected.original &&
                       selected.translated.trim() !== "" &&
                       selected.original.trim() !== "" &&
-                      selected.translated.trim() !== selected.original.trim()
+                      selected.translated.trim() !== selected.original.trim(),
                     );
                     const targetLangLabel = getLanguageLabel(targetLang);
 
@@ -1983,11 +2451,15 @@ export function VideoSubtitleStudio() {
                                 title="Target language"
                               >
                                 {SUPPORTED_TARGET_LANGUAGES.map((l) => (
-                                  <option key={l.code} value={l.code}>{l.label}</option>
+                                  <option key={l.code} value={l.code}>
+                                    {l.label}
+                                  </option>
                                 ))}
                               </select>
                             </div>
-                            <span className="text-[10px] text-muted-foreground">{currentText.length} chars</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {currentText.length} chars
+                            </span>
                           </div>
                         </>
                       );
@@ -2015,7 +2487,9 @@ export function VideoSubtitleStudio() {
                               title="Change target language"
                             >
                               {SUPPORTED_TARGET_LANGUAGES.map((l) => (
-                                <option key={l.code} value={l.code}>{l.label}</option>
+                                <option key={l.code} value={l.code}>
+                                  {l.label}
+                                </option>
                               ))}
                             </select>
                           </div>
@@ -2045,7 +2519,9 @@ export function VideoSubtitleStudio() {
                               <RotateCcw size={12} /> Revert
                             </Button>
                           </div>
-                          <span className="text-[10px] text-muted-foreground">{selected.translated.length} chars</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {selected.translated.length} chars
+                          </span>
                         </div>
                       </>
                     );
@@ -2114,17 +2590,36 @@ export function VideoSubtitleStudio() {
                     </select>
                   </label>
                   <label>
-                    <FieldLabel>Opacity <b>{opacity}%</b></FieldLabel>
-                    <input type="range" min="0" max="100" value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} />
+                    <FieldLabel>
+                      Opacity <b>{opacity}%</b>
+                    </FieldLabel>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={opacity}
+                      onChange={(e) => setOpacity(Number(e.target.value))}
+                    />
                   </label>
                   <label>
-                    <FieldLabel>Padding <b>{padding}px</b></FieldLabel>
-                    <input type="range" min="0" max="32" value={padding} onChange={(e) => setPadding(Number(e.target.value))} />
+                    <FieldLabel>
+                      Padding <b>{padding}px</b>
+                    </FieldLabel>
+                    <input
+                      type="range"
+                      min="0"
+                      max="32"
+                      value={padding}
+                      onChange={(e) => setPadding(Number(e.target.value))}
+                    />
                   </label>
                   {maskMode === "Fitted box" && (
                     <div className="space-y-1.5 pt-0.5">
                       <label>
-                        <FieldLabel>Corner radius <b>{borderRadius >= 50 ? "Pill (Capsule)" : `${borderRadius}px`}</b></FieldLabel>
+                        <FieldLabel>
+                          Corner radius{" "}
+                          <b>{borderRadius >= 50 ? "Pill (Capsule)" : `${borderRadius}px`}</b>
+                        </FieldLabel>
                         <input
                           type="range"
                           min="0"
@@ -2140,7 +2635,7 @@ export function VideoSubtitleStudio() {
                             "px-1 py-1 text-[9px] rounded-md border transition-all text-center",
                             borderRadius === 0
                               ? "border-editor-teal text-editor-teal bg-editor-teal/15 font-semibold"
-                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
                           )}
                           onClick={() => setBorderRadius(0)}
                         >
@@ -2152,7 +2647,7 @@ export function VideoSubtitleStudio() {
                             "px-1 py-1 text-[9px] rounded-md border transition-all text-center",
                             borderRadius === 8
                               ? "border-editor-teal text-editor-teal bg-editor-teal/15 font-semibold"
-                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
                           )}
                           onClick={() => setBorderRadius(8)}
                         >
@@ -2164,7 +2659,7 @@ export function VideoSubtitleStudio() {
                             "px-1 py-1 text-[9px] rounded-md border transition-all text-center",
                             borderRadius === 18
                               ? "border-editor-teal text-editor-teal bg-editor-teal/15 font-semibold"
-                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
                           )}
                           onClick={() => setBorderRadius(18)}
                         >
@@ -2176,7 +2671,7 @@ export function VideoSubtitleStudio() {
                             "px-1 py-1 text-[9px] rounded-md border transition-all text-center",
                             borderRadius >= 50
                               ? "border-editor-teal text-editor-teal bg-editor-teal/15 font-semibold"
-                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
                           )}
                           onClick={() => setBorderRadius(999)}
                         >
@@ -2195,9 +2690,13 @@ export function VideoSubtitleStudio() {
                       className="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg border border-dashed border-editor-teal/60 bg-editor-teal/8 text-editor-teal text-[9px] font-semibold hover:bg-editor-teal/15 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isDetectingColors ? (
-                        <><Loader2 size={11} className="animate-spin" /> Scanning frames...</>
+                        <>
+                          <Loader2 size={11} className="animate-spin" /> Scanning frames...
+                        </>
                       ) : (
-                        <><Sparkle size={11} /> Auto-Detect Colors from Video</>
+                        <>
+                          <Sparkle size={11} /> Auto-Detect Colors from Video
+                        </>
                       )}
                     </button>
 
@@ -2212,7 +2711,9 @@ export function VideoSubtitleStudio() {
                             onChange={(e) => setBgColor(e.target.value)}
                             className="w-4 h-4 rounded cursor-pointer border-0 bg-transparent p-0"
                           />
-                          <span className="font-mono text-[9px] text-muted-foreground flex-1 truncate">{bgColor}</span>
+                          <span className="font-mono text-[9px] text-muted-foreground flex-1 truncate">
+                            {bgColor}
+                          </span>
                         </div>
                       </label>
                       <label className="grid gap-1">
@@ -2224,7 +2725,9 @@ export function VideoSubtitleStudio() {
                             onChange={(e) => setTextColor(e.target.value)}
                             className="w-4 h-4 rounded cursor-pointer border-0 bg-transparent p-0"
                           />
-                          <span className="font-mono text-[9px] text-muted-foreground flex-1 truncate">{textColor}</span>
+                          <span className="font-mono text-[9px] text-muted-foreground flex-1 truncate">
+                            {textColor}
+                          </span>
                         </div>
                       </label>
                     </div>
@@ -2239,16 +2742,23 @@ export function VideoSubtitleStudio() {
                           onChange={(e) => setOutlineColor(e.target.value)}
                           className="w-4 h-4 rounded cursor-pointer border-0 bg-transparent p-0"
                         />
-                        <span className="font-mono text-[9px] text-muted-foreground flex-1 truncate">{outlineColor}</span>
+                        <span className="font-mono text-[9px] text-muted-foreground flex-1 truncate">
+                          {outlineColor}
+                        </span>
                         {/* Live preview swatch */}
                         <span
                           className="w-5 h-5 rounded-full border-2 flex-shrink-0"
-                          style={{ borderColor: outlineColor, backgroundColor: `${outlineColor}22` }}
+                          style={{
+                            borderColor: outlineColor,
+                            backgroundColor: `${outlineColor}22`,
+                          }}
                         />
                       </div>
                     </label>
                     <label className="grid gap-1">
-                      <FieldLabel>Outline width <b>{outlineWidth}px</b></FieldLabel>
+                      <FieldLabel>
+                        Outline width <b>{outlineWidth}px</b>
+                      </FieldLabel>
                       <input
                         type="range"
                         min="0"
@@ -2274,7 +2784,8 @@ export function VideoSubtitleStudio() {
                               style={{
                                 backgroundColor: c,
                                 borderColor: bgColor === c ? "white" : "transparent",
-                                boxShadow: bgColor === c ? `0 0 0 2px ${c}` : "0 1px 3px rgba(0,0,0,0.4)"
+                                boxShadow:
+                                  bgColor === c ? `0 0 0 2px ${c}` : "0 1px 3px rgba(0,0,0,0.4)",
                               }}
                             />
                           ))}
@@ -2298,20 +2809,32 @@ export function VideoSubtitleStudio() {
                     <label>
                       <FieldLabel>Size</FieldLabel>
                       <div className="unit-input">
-                        <input type="number" value={fontSize} onChange={(e) => setFontSize(Number(e.target.value))} />
+                        <input
+                          type="number"
+                          value={fontSize}
+                          onChange={(e) => setFontSize(Number(e.target.value))}
+                        />
                         <span>px</span>
                       </div>
                     </label>
                     <label>
                       <FieldLabel>Weight</FieldLabel>
-                      <button className={cn("bold-toggle", bold && "active")} onClick={() => setBold((b) => !b)}>B</button>
+                      <button
+                        className={cn("bold-toggle", bold && "active")}
+                        onClick={() => setBold((b) => !b)}
+                      >
+                        B
+                      </button>
                     </label>
                   </div>
                 </section>
 
                 <section className="property-section">
                   <h3>Apply style</h3>
-                  <Button variant="outline" onClick={() => quickAction("Style applied to all tracks")}>
+                  <Button
+                    variant="outline"
+                    onClick={() => quickAction("Style applied to all tracks")}
+                  >
                     <Layers3 size={13} /> Apply to track
                   </Button>
                   <Button variant="ghost" onClick={() => quickAction("Style preset saved")}>
@@ -2323,13 +2846,19 @@ export function VideoSubtitleStudio() {
           ) : (
             <div className="empty-inspector">
               <p className="text-sm font-medium">No Segment Selected</p>
-              <p className="text-xs text-muted-foreground mt-1">Click a subtitle block on the timeline or directly on the video to inspect and edit.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Click a subtitle block on the timeline or directly on the video to inspect and edit.
+              </p>
             </div>
           )}
         </aside>
 
         {!rightOpen && (
-          <button className="panel-restore right" onClick={() => setRightOpen(true)} title="Show inspector">
+          <button
+            className="panel-restore right"
+            onClick={() => setRightOpen(true)}
+            title="Show inspector"
+          >
             <ChevronLeft size={15} />
           </button>
         )}
@@ -2343,15 +2872,32 @@ export function VideoSubtitleStudio() {
               <span className="fps">30 FPS</span>
             </div>
             <div className="timeline-tools">
-              <IconButton label="Selection tool" active><MousePointer2 size={14} /></IconButton>
-              <IconButton label="Split at playhead (S)" onClick={splitSelected}><Scissors size={14} /></IconButton>
-              <IconButton label="Merge adjacent (M)" onClick={mergeSelected}><Link2 size={14} /></IconButton>
-              <IconButton label="Delete selected (Del)" onClick={deleteSelected}><Trash2 size={14} /></IconButton>
+              <IconButton label="Selection tool" active>
+                <MousePointer2 size={14} />
+              </IconButton>
+              <IconButton label="Split at playhead (S)" onClick={splitSelected}>
+                <Scissors size={14} />
+              </IconButton>
+              <IconButton label="Merge adjacent (M)" onClick={mergeSelected}>
+                <Link2 size={14} />
+              </IconButton>
+              <IconButton label="Delete selected (Del)" onClick={deleteSelected}>
+                <Trash2 size={14} />
+              </IconButton>
               <span className="tool-divider" />
-              <Button variant={snap ? "active" : "ghost"} size="sm" onClick={() => setSnap((v) => !v)}>
+              <Button
+                variant={snap ? "active" : "ghost"}
+                size="sm"
+                onClick={() => setSnap((v) => !v)}
+              >
                 <GripVertical size={13} /> Snap
               </Button>
-              <IconButton label="Zoom out (-)" onClick={() => setZoom((z) => Math.max(0.65, z - 0.15))}><ZoomOut size={14} /></IconButton>
+              <IconButton
+                label="Zoom out (-)"
+                onClick={() => setZoom((z) => Math.max(0.65, z - 0.15))}
+              >
+                <ZoomOut size={14} />
+              </IconButton>
               <input
                 aria-label="Timeline zoom"
                 className="zoom-slider"
@@ -2362,7 +2908,12 @@ export function VideoSubtitleStudio() {
                 value={zoom}
                 onChange={(e) => setZoom(Number(e.target.value))}
               />
-              <IconButton label="Zoom in (+)" onClick={() => setZoom((z) => Math.min(2.4, z + 0.15))}><ZoomIn size={14} /></IconButton>
+              <IconButton
+                label="Zoom in (+)"
+                onClick={() => setZoom((z) => Math.min(2.4, z + 0.15))}
+              >
+                <ZoomIn size={14} />
+              </IconButton>
               <span className="zoom-readout">{Math.round(zoom * 100)}%</span>
               <IconButton
                 label={timelineOpen ? "Collapse timeline" : "Expand timeline"}
@@ -2384,45 +2935,70 @@ export function VideoSubtitleStudio() {
                 onPointerCancel={finishTimelineDrag}
               >
                 {/* Ruler */}
-                <div className="ruler-label"><Clock3 size={13} /> TC</div>
+                <div className="ruler-label">
+                  <Clock3 size={13} /> TC
+                </div>
                 <div className="ruler" style={{ left: LABEL_WIDTH, width: timelineWidth }}>
-                  {Array.from({ length: Math.ceil(duration) * 2 + 1 }, (_, i) => i / 2).map((time) => (
-                    <div
-                      key={time}
-                      className={cn("tick", Number.isInteger(time) && "major")}
-                      style={{ left: `${(time / duration) * 100}%` }}
-                    >
-                      {Number.isInteger(time) && <span>{formatTime(time)}</span>}
-                    </div>
-                  ))}
+                  {Array.from({ length: Math.ceil(duration) * 2 + 1 }, (_, i) => i / 2).map(
+                    (time) => (
+                      <div
+                        key={time}
+                        className={cn("tick", Number.isInteger(time) && "major")}
+                        style={{ left: `${(time / duration) * 100}%` }}
+                      >
+                        {Number.isInteger(time) && <span>{formatTime(time)}</span>}
+                      </div>
+                    ),
+                  )}
                 </div>
 
                 {/* Simulated Audio Waveform */}
-                <div className="waveform" style={{ left: LABEL_WIDTH, width: timelineWidth }} aria-label="Audio waveform">
+                <div
+                  className="waveform"
+                  style={{ left: LABEL_WIDTH, width: timelineWidth }}
+                  aria-label="Audio waveform"
+                >
                   {Array.from({ length: 160 }, (_, i) => (
                     <i key={i} style={{ height: `${12 + ((i * 17) % 32)}%` }} />
                   ))}
-                  {[3.1, 8.5, 13.6, 19.8].filter((t) => t < duration).map((t) => (
-                    <b key={t} style={{ left: `${(t / duration) * 100}%` }} title="Scene change" />
-                  ))}
+                  {[3.1, 8.5, 13.6, 19.8]
+                    .filter((t) => t < duration)
+                    .map((t) => (
+                      <b
+                        key={t}
+                        style={{ left: `${(t / duration) * 100}%` }}
+                        title="Scene change"
+                      />
+                    ))}
                 </div>
 
                 {/* 3 Tracks */}
                 {TRACKS.map((track, trackIndex) => {
                   const TrackIcon = track.icon;
                   return (
-                    <div className="track-row" key={track.name} style={{ top: 80 + trackIndex * 64 }}>
+                    <div
+                      className="track-row"
+                      key={track.name}
+                      style={{ top: 80 + trackIndex * 64 }}
+                    >
                       <div className="track-label">
                         <TrackIcon size={14} />
                         <div>
                           <strong>{track.name}</strong>
                           <span>{track.type}</span>
                         </div>
-                        <IconButton label={`Toggle ${track.name} visibility`}><Eye size={12} /></IconButton>
-                        <IconButton label={`Lock ${track.name}`}><Lock size={12} /></IconButton>
+                        <IconButton label={`Toggle ${track.name} visibility`}>
+                          <Eye size={12} />
+                        </IconButton>
+                        <IconButton label={`Lock ${track.name}`}>
+                          <Lock size={12} />
+                        </IconButton>
                       </div>
 
-                      <div className="track-lane" style={{ left: LABEL_WIDTH, width: timelineWidth }}>
+                      <div
+                        className="track-lane"
+                        style={{ left: LABEL_WIDTH, width: timelineWidth }}
+                      >
                         {segments
                           .filter((s) => s.track === trackIndex)
                           .map((segment) => (
@@ -2433,7 +3009,9 @@ export function VideoSubtitleStudio() {
                                 "segment-block",
                                 `source-${segment.source.toLowerCase()}`,
                                 selectedId === segment.id && "selected",
-                                playhead >= segment.start && playhead <= segment.end && "active-at-playhead"
+                                playhead >= segment.start &&
+                                  playhead <= segment.end &&
+                                  "active-at-playhead",
                               )}
                               style={{
                                 left: `${(segment.start / duration) * 100}%`,
@@ -2448,7 +3026,11 @@ export function VideoSubtitleStudio() {
                               />
                               <div className="segment-content">
                                 <span className="segment-source">
-                                  {segment.source === "WHISPER" ? <Mic2 size={10} /> : <Eye size={10} />}
+                                  {segment.source === "WHISPER" ? (
+                                    <Mic2 size={10} />
+                                  ) : (
+                                    <Eye size={10} />
+                                  )}
                                 </span>
                                 <p>{segment.translated || segment.original}</p>
                                 <small>{(segment.end - segment.start).toFixed(1)}s</small>
@@ -2490,7 +3072,9 @@ export function VideoSubtitleStudio() {
         <div className="status-toast border-primary">
           <Sparkle size={14} className="text-primary" />
           <div className="flex items-center gap-3">
-            <span>Video rendered: <strong>{renderResult.filename}</strong></span>
+            <span>
+              Video rendered: <strong>{renderResult.filename}</strong>
+            </span>
             <a
               href={renderResult.video_url}
               download
@@ -2522,22 +3106,50 @@ export function VideoSubtitleStudio() {
               </IconButton>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Modern browsers prevent websites from directly typing or clicking buttons inside other websites (Same-Origin Policy). The included extension acts as a secure local bridge between Video Subtitle Studio and <strong>ChatGPT</strong>, <strong>Claude</strong>, or <strong>DeepSeek</strong>.
+              Modern browsers prevent websites from directly typing or clicking buttons inside other
+              websites (Same-Origin Policy). The included extension acts as a secure local bridge
+              between Video Subtitle Studio and <strong>ChatGPT</strong>, <strong>Claude</strong>,
+              or <strong>DeepSeek</strong>.
             </p>
             <div className="p-3 bg-secondary/80 border border-border rounded-md text-xs space-y-2 font-mono">
               <div className="text-foreground font-semibold">10-Second Setup:</div>
               <ol className="list-decimal list-inside space-y-1.5 text-muted-foreground">
-                <li>Open <span className="text-editor-teal select-all">chrome://extensions</span> in Chrome or Edge</li>
-                <li>Toggle ON <strong>Developer mode</strong> (top-right switch)</li>
-                <li>Click <strong>Load unpacked</strong> (top-left button)</li>
-                <li>Select the folder: <br /><span className="text-foreground bg-background px-1.5 py-0.5 rounded select-all break-all border border-border inline-block mt-1">video-subtitle-overlay/subtitle-ai-extension</span> (in your project directory)</li>
+                <li>
+                  Open <span className="text-editor-teal select-all">chrome://extensions</span> in
+                  Chrome or Edge
+                </li>
+                <li>
+                  Toggle ON <strong>Developer mode</strong> (top-right switch)
+                </li>
+                <li>
+                  Click <strong>Load unpacked</strong> (top-left button)
+                </li>
+                <li>
+                  Select the folder: <br />
+                  <span className="text-foreground bg-background px-1.5 py-0.5 rounded select-all break-all border border-border inline-block mt-1">
+                    video-subtitle-overlay/subtitle-ai-extension
+                  </span>{" "}
+                  (in your project directory)
+                </li>
               </ol>
             </div>
             <div className="text-[11px] text-muted-foreground bg-background/50 p-2.5 rounded border border-border/50">
-              💡 <strong>No extension installed?</strong> No problem! Clicking ChatGPT or Claude automatically copies the structured prompt to your clipboard and opens the tab. Just press <kbd className="px-1 py-0.5 bg-secondary rounded border border-border text-foreground font-mono text-[10px]">Ctrl + V</kbd> and <kbd className="px-1 py-0.5 bg-secondary rounded border border-border text-foreground font-mono text-[10px]">Enter</kbd>!
+              💡 <strong>No extension installed?</strong> No problem! Clicking ChatGPT or Claude
+              automatically copies the structured prompt to your clipboard and opens the tab. Just
+              press{" "}
+              <kbd className="px-1 py-0.5 bg-secondary rounded border border-border text-foreground font-mono text-[10px]">
+                Ctrl + V
+              </kbd>{" "}
+              and{" "}
+              <kbd className="px-1 py-0.5 bg-secondary rounded border border-border text-foreground font-mono text-[10px]">
+                Enter
+              </kbd>
+              !
             </div>
             <div className="flex justify-end pt-1">
-              <Button size="sm" onClick={() => setShowExtensionModal(false)}>Got it</Button>
+              <Button size="sm" onClick={() => setShowExtensionModal(false)}>
+                Got it
+              </Button>
             </div>
           </div>
         </div>

@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (Bun & Vite)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Frontend Dependencies
+        run: bun install --frozen-lockfile
+        working-directory: frontend
+
+      - name: Run ESLint
+        run: bun run lint
+        working-directory: frontend
+
+      - name: Build Frontend Application
+        run: bun run build
+        working-directory: frontend
+
+      - name: Verify Build Artifacts
+        run: |
+          test -f app/static/index.html || { echo "Missing index.html in app/static"; exit 1; }
+          echo "Frontend built successfully into app/static."
+
+  backend:
+    name: Backend Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install System FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Pre-install CPU-only PyTorch to avoid massive CUDA wheel downloads
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Verify Python Syntax & Compilation
+        run: |
+          python -m py_compile app/*.py tests/*.py mcp_server.py run_app.py
+
+      - name: Run Pytest Test Suite
+        run: |
+          python -m pytest tests/ -v

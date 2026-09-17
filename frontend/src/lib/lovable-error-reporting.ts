@@ -6,4 +6,3 @@ export function reportLovableError(error: unknown, context: Record<string, unkno
   if (typeof window === "undefined") return;
   console.error("[App Error]", error, context);
 }
-

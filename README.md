@@ -1,6 +1,7 @@
 # Video Subtitle Studio 🎬
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/Loc1ran/video-subtitle-overlay/actions/workflows/ci.yml/badge.svg)](https://github.com/Loc1ran/video-subtitle-overlay/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/Frontend-React_19-61DAFB.svg)](https://react.dev/)
@@ -109,13 +110,34 @@ video-subtitle-studio/
 │   ├── package.json
 │   └── vite.config.ts
 ├── subtitle-ai-extension/  # Chrome/Edge AI translation bridge extension
+├── tests/                  # Pytest unit tests (API & video processor)
 ├── mcp_server.py           # Model Context Protocol (MCP) server
 ├── requirements.txt        # Python package dependencies
+├── requirements-dev.txt    # Development and testing dependencies
 ├── run_app.py              # Application launcher & port manager
 ├── start.bat               # Windows one-click launcher
 ├── stop.bat                # Windows server stop script
 ├── build_frontend.bat      # Frontend build script
 └── LICENSE                 # MIT License
+```
+
+---
+
+## 🧪 Running Tests
+
+To run the automated backend test suite locally:
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
+
+To run frontend linting and build checks:
+
+```bash
+cd frontend
+bun run lint
+bun run build
 ```
 
 ---
