@@ -15,7 +15,7 @@ if exist "%LOCALAPPDATA%\Python\pythoncore-3.14-64\python.exe" (
     set "PY_EXE=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
 )
 
-"%PY_EXE%" run_app.py --reload
+"%PY_EXE%" run_app.py
 
 echo.
 echo =======================================================

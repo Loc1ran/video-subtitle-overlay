@@ -6,7 +6,16 @@ import threading
 import subprocess
 import webbrowser
 import urllib.request
+import logging
 import uvicorn
+
+class SanitizeLogFilter(logging.Filter):
+    def filter(self, record):
+        if "Will watch for changes" in record.getMessage():
+            return False
+        return True
+
+logging.getLogger("uvicorn.error").addFilter(SanitizeLogFilter())
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
@@ -87,7 +96,7 @@ def main():
         # 1. Logs stream in real time to the terminal window
         # 2. Window stays open and visible
         # 3. Ctrl+C or closing window cleanly terminates the server
-        use_reload = "--no-reload" not in sys.argv
+        use_reload = "--reload" in sys.argv
         if use_reload:
             uvicorn.run(
                 "app.main:app",
