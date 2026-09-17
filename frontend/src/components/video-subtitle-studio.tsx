@@ -3,6 +3,7 @@ import {
   AlignCenter,
   AlignLeft,
   AlignRight,
+  Bookmark,
   Bot,
   Brain,
   Captions,
@@ -18,14 +19,18 @@ import {
   Film,
   FolderOpen,
   GripVertical,
+  Heart,
   Languages,
   Layers3,
   Link2,
   Lock,
   Maximize2,
   Menu,
+  MessageCircle,
   Mic2,
+  Monitor,
   MousePointer2,
+  Music,
   Pause,
   Play,
   Plus,
@@ -34,8 +39,10 @@ import {
   Scissors,
   Search,
   Settings2,
+  Share2,
   SkipBack,
   SkipForward,
+  Smartphone,
   Sparkle,
   Trash2,
   Undo2,
@@ -289,6 +296,7 @@ export function VideoSubtitleStudio() {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoFilename, setVideoFilename] = useState("tokyo_diary_final.mp4");
   const [videoResolution, setVideoResolution] = useState("1920 × 1080 · 30 fps");
+  const [videoNaturalAspect, setVideoNaturalAspect] = useState<string | null>(null);
   const [duration, setDuration] = useState(24);
   const [recentVideos, setRecentVideos] = useState<RecentVideo[]>([]);
   const [isSaved, setIsSaved] = useState(true);
@@ -363,14 +371,22 @@ export function VideoSubtitleStudio() {
     filename: string;
   } | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showBurnModal, setShowBurnModal] = useState(false);
+  const [showBurnMenu, setShowBurnMenu] = useState(false);
   const [showProjectsDropdown, setShowProjectsDropdown] = useState(false);
   const [targetLang, setTargetLang] = useState("vi");
   const [transcriptSearch, setTranscriptSearch] = useState("");
   const [showExtensionModal, setShowExtensionModal] = useState(false);
   const aiJobPollRef = useRef<number | null>(null);
 
+  // Auto Reframe state
+  const [reframeTarget, setReframeTarget] = useState<"original" | "tiktok" | "youtube">("original");
+  const [reframeMode, setReframeMode] = useState<"blur" | "crop" | "fit">("blur");
+  const [showTikTokUI, setShowTikTokUI] = useState(true);
+
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
+  const bgVideoRef = useRef<HTMLVideoElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -407,11 +423,15 @@ export function VideoSubtitleStudio() {
       .map((s) => ({ ...s, displayY: s.y }))
       .sort((a, b) => a.displayY - b.displayY);
 
-    const minClearancePct = 16.0; // Ensure simultaneous title cards maintain clearance so neither box covers the other
+    const minClearancePct = 3.2; // Clean vertical clearance between multi-line headers (only adjust if genuinely colliding)
     for (let pass = 0; pass < 3; pass++) {
       for (let i = 0; i < sortedUpper.length - 1; i++) {
         const top = sortedUpper[i];
         const btm = sortedUpper[i + 1];
+        // Only apply vertical clearance if they are actually in the same horizontal column (within 20% X)
+        const isHorizontallyOverlapping = Math.abs((top.x ?? 50) - (btm.x ?? 50)) < 22.0;
+        if (!isHorizontallyOverlapping) continue;
+
         const gap = btm.displayY - top.displayY;
         if (gap < minClearancePct) {
           const needed = minClearancePct - gap;
@@ -481,6 +501,7 @@ export function VideoSubtitleStudio() {
         setVideoResolution(
           `${data.info.width} × ${data.info.height} · ${Math.round(data.info.fps || 30)} fps`,
         );
+        setVideoNaturalAspect(`${data.info.width} / ${data.info.height}`);
       }
 
       if (data.style) {
@@ -514,6 +535,13 @@ export function VideoSubtitleStudio() {
         setTargetLang(data.target_lang);
       }
 
+      if (data.reframe_target) {
+        setReframeTarget(data.reframe_target);
+      }
+      if (data.reframe_mode) {
+        setReframeMode(data.reframe_mode);
+      }
+
       if (data.segments && Array.isArray(data.segments)) {
         if (data.segments.length > 0) {
           const loadedSegs: Segment[] = data.segments.map((s: any) => {
@@ -525,12 +553,16 @@ export function VideoSubtitleStudio() {
                   ? 18
                   : 84;
             const anchor = "center";
+            const isSideSticker = (x < 30 || x > 70) && y < 70;
+            const isHeader = y < 70 && !isSideSticker;
             const track =
               s.track_id !== undefined && s.track_id !== null
                 ? Math.max(0, Math.min(2, s.track_id - 1))
-                : y < 70
-                  ? 0
-                  : 1;
+                : isSideSticker
+                  ? 2
+                  : isHeader
+                    ? 0
+                    : 1;
             return {
               id: s.id,
               track,
@@ -734,6 +766,8 @@ export function VideoSubtitleStudio() {
           },
           target_lang: targetLang,
           current_time: playhead,
+          reframe_target: reframeTarget,
+          reframe_mode: reframeMode,
         };
         await fetch(`/api/save-state/${currentFileId}`, {
           method: "POST",
@@ -755,6 +789,9 @@ export function VideoSubtitleStudio() {
       if (videoRef.current) {
         videoRef.current.currentTime = clamped;
       }
+      if (bgVideoRef.current) {
+        bgVideoRef.current.currentTime = clamped;
+      }
     },
     [duration],
   );
@@ -767,6 +804,7 @@ export function VideoSubtitleStudio() {
     }
     if (vid.videoWidth && vid.videoHeight) {
       setVideoResolution(`${vid.videoWidth} × ${vid.videoHeight} · 30 fps`);
+      setVideoNaturalAspect(`${vid.videoWidth} / ${vid.videoHeight}`);
     }
   }
 
@@ -774,8 +812,12 @@ export function VideoSubtitleStudio() {
     if (!videoRef.current) return;
     const cur = videoRef.current.currentTime;
     setPlayhead(cur);
+    if (bgVideoRef.current && Math.abs(bgVideoRef.current.currentTime - cur) > 0.25) {
+      bgVideoRef.current.currentTime = cur;
+    }
     if (loop && selected && cur >= selected.end) {
       videoRef.current.currentTime = selected.start;
+      if (bgVideoRef.current) bgVideoRef.current.currentTime = selected.start;
     }
   }
 
@@ -786,8 +828,12 @@ export function VideoSubtitleStudio() {
       if (videoRef.current && !videoRef.current.paused) {
         const cur = videoRef.current.currentTime;
         setPlayhead(cur);
+        if (bgVideoRef.current && Math.abs(bgVideoRef.current.currentTime - cur) > 0.3) {
+          bgVideoRef.current.currentTime = cur;
+        }
         if (loop && selected && cur >= selected.end) {
           videoRef.current.currentTime = selected.start;
+          if (bgVideoRef.current) bgVideoRef.current.currentTime = selected.start;
         }
       }
       if (playing) {
@@ -807,9 +853,11 @@ export function VideoSubtitleStudio() {
     if (!videoRef.current) return;
     if (videoRef.current.paused) {
       videoRef.current.play().catch(() => {});
+      if (bgVideoRef.current) bgVideoRef.current.play().catch(() => {});
       setPlaying(true);
     } else {
       videoRef.current.pause();
+      if (bgVideoRef.current) bgVideoRef.current.pause();
       setPlaying(false);
     }
   }
@@ -818,6 +866,9 @@ export function VideoSubtitleStudio() {
     setSpeed(newSpeed);
     if (videoRef.current) {
       videoRef.current.playbackRate = newSpeed;
+    }
+    if (bgVideoRef.current) {
+      bgVideoRef.current.playbackRate = newSpeed;
     }
   }
 
@@ -969,12 +1020,16 @@ export function VideoSubtitleStudio() {
                 ? "right"
                 : "center"
             : "center";
+          const isSideSticker = (x < 30 || x > 70) && y < 70;
+          const isHeader = y < 70 && !isSideSticker;
           const track =
             s.track_id !== undefined && s.track_id !== null
               ? Math.max(0, Math.min(2, s.track_id - 1))
-              : y < 70
-                ? 0
-                : 1;
+              : isSideSticker
+                ? 2
+                : isHeader
+                  ? 0
+                  : 1;
           return {
             id: s.id,
             track,
@@ -1379,6 +1434,8 @@ export function VideoSubtitleStudio() {
           bg_color: bgColor,
           bold,
         },
+        reframe_target: reframeTarget,
+        reframe_mode: reframeMode,
       };
 
       const res = await fetch("/api/render", {
@@ -1432,11 +1489,51 @@ export function VideoSubtitleStudio() {
 
   const mergeSelected = useCallback(() => {
     if (!selected) return;
+
+    // 1. Check for simultaneous stacked title/subtitle (e.g. 2 lines occurring at the same time)
+    const simultaneous = segments
+      .filter((s) => {
+        if (s.id === selected.id) return false;
+        const overlap = Math.min(s.end, selected.end) - Math.max(s.start, selected.start);
+        const duration = Math.min(s.end - s.start, selected.end - selected.start);
+        return overlap > 0.5 && overlap >= duration * 0.7;
+      })
+      .sort((a, b) => Math.abs(a.y - selected.y) - Math.abs(b.y - selected.y))[0];
+
+    if (simultaneous && Math.abs(simultaneous.y - selected.y) < 20) {
+      const isSelectedTop = selected.y < simultaneous.y;
+      const topSeg = isSelectedTop ? selected : simultaneous;
+      const btmSeg = isSelectedTop ? simultaneous : selected;
+      const updated = segments
+        .filter((s) => s.id !== simultaneous.id)
+        .map((s) =>
+          s.id === selected.id
+            ? {
+                ...s,
+                start: Math.min(selected.start, simultaneous.start),
+                end: Math.max(selected.end, simultaneous.end),
+                original: `${topSeg.original}\n${btmSeg.original}`,
+                translated: `${topSeg.translated}\n${btmSeg.translated}`,
+                y: Math.round(((selected.y + simultaneous.y) / 2) * 10) / 10,
+                x: Math.round(((selected.x + simultaneous.x) / 2) * 10) / 10,
+                boxH: (selected.boxH || 85) + (simultaneous.boxH || 85),
+                boxW: Math.max(selected.boxW || 400, simultaneous.boxW || 400),
+              }
+            : s,
+        );
+      setSegments(updated);
+      pushHistory(updated);
+      scheduleAutoSave(updated);
+      quickAction("Stacked lines merged into 1 wrapper");
+      return;
+    }
+
+    // 2. Otherwise merge sequential adjacent blocks on same track
     const adjacent = segments
       .filter((s) => s.track === selected.track && s.id !== selected.id)
       .sort((a, b) => Math.abs(a.start - selected.end) - Math.abs(b.start - selected.end))[0];
     if (!adjacent || Math.abs(adjacent.start - selected.end) > 2) {
-      quickAction("No adjacent block available to merge");
+      quickAction("No adjacent or stacked block available to merge");
       return;
     }
     const updated = segments
@@ -1453,6 +1550,7 @@ export function VideoSubtitleStudio() {
       );
     setSegments(updated);
     pushHistory(updated);
+    scheduleAutoSave(updated);
     quickAction("Adjacent blocks merged");
   }, [selected, segments]);
 
@@ -1716,9 +1814,149 @@ export function VideoSubtitleStudio() {
             )}
           </div>
 
-          <Button size="sm" onClick={burnAndExportVideo} disabled={isRendering}>
-            <Sparkle size={14} /> {isRendering ? "Burning..." : "Burn & export"}
-          </Button>
+          {/* Burn & Export Dropdown & Modal Trigger */}
+          <div className="relative">
+            <Button
+              size="sm"
+              onClick={() => {
+                if (!currentFileId) {
+                  quickAction("Please select or upload a video first");
+                  fileInputRef.current?.click();
+                  return;
+                }
+                setShowBurnMenu((v) => !v);
+              }}
+              disabled={isRendering}
+              className="gap-1.5 cursor-pointer shadow-sm"
+              title="Select format (TikTok, YouTube, Original) to burn & export video"
+            >
+              <Sparkle size={14} />{" "}
+              {isRendering
+                ? "Burning video..."
+                : reframeTarget === "tiktok"
+                  ? "Burn: TikTok (9:16)"
+                  : reframeTarget === "youtube"
+                    ? "Burn: YouTube (16:9)"
+                    : "Burn & export video"}
+              <ChevronDown
+                size={12}
+                className={cn(
+                  "transition-transform duration-200",
+                  showBurnMenu ? "rotate-180" : "",
+                )}
+              />
+            </Button>
+
+            {/* Backdrop to close menu when clicking outside */}
+            {showBurnMenu && (
+              <div className="fixed inset-0 z-40" onClick={() => setShowBurnMenu(false)} />
+            )}
+
+            {/* Dropdown Menu for selecting platform */}
+            {showBurnMenu && (
+              <div className="absolute right-0 top-full mt-1.5 w-72 rounded-xl border border-border bg-popover/98 backdrop-blur-md p-2 shadow-2xl z-50 animate-in fade-in-50 zoom-in-95 text-foreground">
+                <div className="px-2 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                  <span>Select Export Target</span>
+                  <span className="text-[10px] text-editor-teal font-medium">choose format</span>
+                </div>
+
+                <div className="space-y-1 mt-1">
+                  <button
+                    type="button"
+                    className={cn(
+                      "w-full flex items-start gap-2.5 rounded-lg p-2.5 text-left transition-colors cursor-pointer",
+                      reframeTarget === "tiktok"
+                        ? "bg-editor-teal/15 border border-editor-teal/30 text-foreground"
+                        : "hover:bg-secondary text-muted-foreground hover:text-foreground",
+                    )}
+                    onClick={() => {
+                      setReframeTarget("tiktok");
+                      setShowSafeZones(true);
+                      setShowBurnMenu(false);
+                      setShowBurnModal(true);
+                    }}
+                  >
+                    <Smartphone size={17} className="text-editor-teal mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-xs text-foreground flex items-center justify-between">
+                        <span>TikTok / Shorts (9:16)</span>
+                        <span className="text-[10px] font-mono text-editor-teal">1080×1920</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                        Vertical full-screen · Smart blur or crop fill
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={cn(
+                      "w-full flex items-start gap-2.5 rounded-lg p-2.5 text-left transition-colors cursor-pointer",
+                      reframeTarget === "youtube"
+                        ? "bg-editor-teal/15 border border-editor-teal/30 text-foreground"
+                        : "hover:bg-secondary text-muted-foreground hover:text-foreground",
+                    )}
+                    onClick={() => {
+                      setReframeTarget("youtube");
+                      setShowBurnMenu(false);
+                      setShowBurnModal(true);
+                    }}
+                  >
+                    <Monitor size={17} className="text-editor-teal mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-xs text-foreground flex items-center justify-between">
+                        <span>YouTube (16:9)</span>
+                        <span className="text-[10px] font-mono text-editor-teal">1920×1080</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                        Standard widescreen landscape format
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={cn(
+                      "w-full flex items-start gap-2.5 rounded-lg p-2.5 text-left transition-colors cursor-pointer",
+                      reframeTarget === "original"
+                        ? "bg-editor-teal/15 border border-editor-teal/30 text-foreground"
+                        : "hover:bg-secondary text-muted-foreground hover:text-foreground",
+                    )}
+                    onClick={() => {
+                      setReframeTarget("original");
+                      setShowBurnMenu(false);
+                      setShowBurnModal(true);
+                    }}
+                  >
+                    <Film size={17} className="text-editor-teal mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-xs text-foreground flex items-center justify-between">
+                        <span>Original Aspect Ratio</span>
+                        <span className="text-[10px] font-mono text-muted-foreground">Native</span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                        Burn subtitles directly onto original resolution
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="my-1.5 border-t border-border" />
+
+                <button
+                  type="button"
+                  className="w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                  onClick={() => {
+                    setShowBurnMenu(false);
+                    setShowBurnModal(true);
+                  }}
+                >
+                  <Settings2 size={14} className="text-muted-foreground" />
+                  <span>Customize framing & safe zones...</span>
+                </button>
+              </div>
+            )}
+          </div>
           <IconButton label="Workspace menu" onClick={() => quickAction("Workspace menu ready")}>
             <Menu size={16} />
           </IconButton>
@@ -2007,15 +2245,180 @@ export function VideoSubtitleStudio() {
         {/* CENTER VIEWPORT (PROGRAM MONITOR) */}
         <section className="viewer-panel">
           <div className="viewer-toolbar">
-            <div>
+            <div className="flex items-center gap-2 flex-wrap">
               <span>PROGRAM</span>
-              <span className="viewer-resolution">Fit · 1080p</span>
+              <span className="viewer-resolution">
+                {reframeTarget === "tiktok"
+                  ? "9:16 · TikTok"
+                  : reframeTarget === "youtube"
+                    ? "16:9 · YouTube"
+                    : "Original"}
+              </span>
+
+              {/* Platform Reframe Selector */}
+              <div className="flex items-center bg-background/80 border border-border rounded-md p-0.5 ml-1 gap-0.5 text-[10px]">
+                <button
+                  type="button"
+                  className={cn(
+                    "px-2 py-0.5 rounded transition-colors flex items-center gap-1",
+                    reframeTarget === "original"
+                      ? "bg-editor-teal/20 text-editor-teal font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  onClick={() => setReframeTarget("original")}
+                  title="Original Aspect Ratio"
+                >
+                  Original
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "px-2 py-0.5 rounded transition-colors flex items-center gap-1",
+                    reframeTarget === "tiktok"
+                      ? "bg-editor-teal/20 text-editor-teal font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  onClick={() => {
+                    setReframeTarget("tiktok");
+                    setShowSafeZones(true);
+                    setShowTikTokUI(true);
+                  }}
+                  title="Auto Reframe for TikTok / Shorts / Reels (9:16 Vertical)"
+                >
+                  <Smartphone size={11} /> TikTok (9:16)
+                </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "px-2 py-0.5 rounded transition-colors flex items-center gap-1",
+                    reframeTarget === "youtube"
+                      ? "bg-editor-teal/20 text-editor-teal font-semibold shadow-xs"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  onClick={() => setReframeTarget("youtube")}
+                  title="Auto Reframe for YouTube Widescreen (16:9)"
+                >
+                  <Monitor size={11} /> YouTube (16:9)
+                </button>
+              </div>
+
+              {/* Framing Mode (when reframed) */}
+              {reframeTarget !== "original" && (
+                <div className="flex items-center bg-background/80 border border-border rounded-md p-0.5 gap-0.5 text-[10px]">
+                  <button
+                    type="button"
+                    className={cn(
+                      "px-1.5 py-0.5 rounded transition-colors",
+                      reframeMode === "blur"
+                        ? "bg-editor-teal/20 text-editor-teal font-semibold"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                    onClick={() => setReframeMode("blur")}
+                    title="Blur Background: Keep entire video in center with smart blurred duplicate background"
+                  >
+                    Blur BG
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "px-1.5 py-0.5 rounded transition-colors",
+                      reframeMode === "crop"
+                        ? "bg-editor-teal/20 text-editor-teal font-semibold"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                    onClick={() => setReframeMode("crop")}
+                    title="Crop to Fill: Center crop video to fill the full frame"
+                  >
+                    Crop Fill
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "px-1.5 py-0.5 rounded transition-colors",
+                      reframeMode === "fit"
+                        ? "bg-editor-teal/20 text-editor-teal font-semibold"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                    onClick={() => setReframeMode("fit")}
+                    title="Fit: Letterbox with black bars"
+                  >
+                    Black Bars
+                  </button>
+                </div>
+              )}
             </div>
-            <div>
+
+            <div className="flex items-center gap-1">
+              {/* Subtitle Positioning Presets for TikTok */}
+              {reframeTarget === "tiktok" && (
+                <div className="flex items-center gap-1 mr-2 text-[10px]">
+                  <span className="text-white/40 text-[9px] mr-0.5">Layout:</span>
+                  <button
+                    type="button"
+                    className="px-1.5 py-0.5 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary text-[9px]"
+                    onClick={() => {
+                      setSegments((prev) => prev.map((s) => (s.y >= 65 ? { ...s, y: 76 } : s)));
+                      quickAction("Subtitles placed at TikTok Safe Lower Third (76%)");
+                    }}
+                    title="Move dialogue subtitles to TikTok Safe Zone (Y: 76%)"
+                  >
+                    TikTok Safe (76%)
+                  </button>
+                  <button
+                    type="button"
+                    className="px-1.5 py-0.5 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary text-[9px]"
+                    onClick={() => {
+                      setSegments((prev) => prev.map((s) => (s.y >= 65 ? { ...s, y: 50 } : s)));
+                      quickAction("Subtitles placed at Center Hook (50%)");
+                    }}
+                    title="Move subtitles to Center Hook (Y: 50%)"
+                  >
+                    Center (50%)
+                  </button>
+                  {reframeMode === "blur" && (
+                    <button
+                      type="button"
+                      className="px-1.5 py-0.5 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary text-[9px]"
+                      onClick={() => {
+                        setSegments((prev) => prev.map((s) => (s.y >= 65 ? { ...s, y: 62 } : s)));
+                        quickAction("Subtitles aligned over original centered video (62%)");
+                      }}
+                      title="Align over original video box (Y: 62%)"
+                    >
+                      Mask Original (62%)
+                    </button>
+                  )}
+                </div>
+              )}
+
               <IconButton
-                label="Toggle safe zones"
+                label={
+                  reframeTarget === "tiktok"
+                    ? showSafeZones
+                      ? showTikTokUI
+                        ? "TikTok UI Preview ON (Click for Grid)"
+                        : "Safe Zone Grid ON (Click to Hide)"
+                      : "Safe Zones OFF (Click to Show)"
+                    : showSafeZones
+                      ? "Hide Safe Zones"
+                      : "Show Safe Zones"
+                }
                 active={showSafeZones}
-                onClick={() => setShowSafeZones((v) => !v)}
+                onClick={() => {
+                  if (reframeTarget === "tiktok") {
+                    if (!showSafeZones) {
+                      setShowSafeZones(true);
+                      setShowTikTokUI(true);
+                    } else if (showTikTokUI) {
+                      setShowTikTokUI(false);
+                    } else {
+                      setShowSafeZones(false);
+                      setShowTikTokUI(true);
+                    }
+                  } else {
+                    setShowSafeZones((v) => !v);
+                  }
+                }}
               >
                 <Settings2 size={14} />
               </IconButton>
@@ -2050,18 +2453,62 @@ export function VideoSubtitleStudio() {
               }
             }}
           >
-            <div ref={canvasRef} className="video-stage">
+            <div
+              ref={canvasRef}
+              className={cn(
+                "video-stage",
+                reframeTarget === "tiktok" && "reframe-tiktok",
+                reframeTarget === "youtube" && "reframe-youtube",
+              )}
+              style={{
+                aspectRatio:
+                  reframeTarget === "original" && videoNaturalAspect
+                    ? videoNaturalAspect
+                    : undefined,
+              }}
+            >
               {videoUrl ? (
-                <video
-                  ref={videoRef}
-                  src={videoUrl}
-                  className="w-full h-full object-contain block bg-black"
-                  onTimeUpdate={handleTimeUpdate}
-                  onLoadedMetadata={handleLoadedMetadata}
-                  onPlay={() => setPlaying(true)}
-                  onPause={() => setPlaying(false)}
-                  onEnded={() => setPlaying(false)}
-                />
+                <>
+                  {/* Blurred background video when in blur reframe mode */}
+                  {reframeTarget !== "original" && reframeMode === "blur" && (
+                    <video
+                      ref={bgVideoRef}
+                      src={videoUrl}
+                      aria-hidden="true"
+                      muted
+                      tabIndex={-1}
+                      className="absolute inset-0 w-full h-full object-cover filter blur-xl scale-125 brightness-75 -z-10 pointer-events-none"
+                    />
+                  )}
+                  <video
+                    ref={videoRef}
+                    src={videoUrl}
+                    className={cn(
+                      "w-full h-full block",
+                      reframeTarget === "original"
+                        ? "object-contain bg-black"
+                        : reframeMode === "crop"
+                          ? "object-cover"
+                          : reframeMode === "blur"
+                            ? "object-contain relative z-0"
+                            : "object-contain bg-black relative z-0",
+                    )}
+                    onTimeUpdate={handleTimeUpdate}
+                    onLoadedMetadata={handleLoadedMetadata}
+                    onPlay={() => {
+                      setPlaying(true);
+                      if (bgVideoRef.current) bgVideoRef.current.play().catch(() => {});
+                    }}
+                    onPause={() => {
+                      setPlaying(false);
+                      if (bgVideoRef.current) bgVideoRef.current.pause();
+                    }}
+                    onEnded={() => {
+                      setPlaying(false);
+                      if (bgVideoRef.current) bgVideoRef.current.pause();
+                    }}
+                  />
+                </>
               ) : (
                 <img src={previewImage} alt="Video preview stage" width={1536} height={864} />
               )}
@@ -2097,12 +2544,72 @@ export function VideoSubtitleStudio() {
               )}
 
               {/* Safe Zones Overlay */}
-              {showSafeZones && (
-                <>
-                  <div className="safe-zone safe-zone-outer" title="Action Safe (90%)" />
-                  <div className="safe-zone safe-zone-inner" title="Title Safe (80%)" />
-                </>
-              )}
+              {showSafeZones &&
+                (reframeTarget === "tiktok" ? (
+                  <>
+                    <div className="tiktok-safe-zone" title="TikTok Safe Viewing Area" />
+                    {showTikTokUI && (
+                      <div className="tiktok-ui-overlay">
+                        <div className="tiktok-ui-top">
+                          <span className="opacity-60 text-xs">Following</span>
+                          <span className="font-bold border-b-2 border-white pb-0.5">For You</span>
+                        </div>
+                        <div className="tiktok-ui-right">
+                          <div className="tiktok-ui-right-item">
+                            <div className="w-9 h-9 rounded-full bg-white/25 border border-white/40 flex items-center justify-center font-bold text-xs">
+                              ✦
+                            </div>
+                          </div>
+                          <div className="tiktok-ui-right-item">
+                            <Heart size={24} className="fill-white/90 text-white drop-shadow-md" />
+                            <span>84.2K</span>
+                          </div>
+                          <div className="tiktok-ui-right-item">
+                            <MessageCircle
+                              size={24}
+                              className="fill-white/90 text-white drop-shadow-md"
+                            />
+                            <span>1,248</span>
+                          </div>
+                          <div className="tiktok-ui-right-item">
+                            <Bookmark
+                              size={24}
+                              className="fill-white/90 text-white drop-shadow-md"
+                            />
+                            <span>9.4K</span>
+                          </div>
+                          <div className="tiktok-ui-right-item">
+                            <Share2 size={24} className="fill-white/90 text-white drop-shadow-md" />
+                            <span>3.8K</span>
+                          </div>
+                          <div className="tiktok-ui-right-item mt-1">
+                            <div
+                              className="w-8 h-8 rounded-full bg-black/70 border-2 border-white/40 flex items-center justify-center animate-spin"
+                              style={{ animationDuration: "4s" }}
+                            >
+                              <Music size={14} className="text-white/80" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="tiktok-ui-bottom">
+                          <span className="author">@creator</span>
+                          <span className="caption truncate">
+                            {videoFilename || "Original Video"} · #fyp #viral
+                          </span>
+                          <div className="sound">
+                            <Music size={11} />
+                            <span className="truncate">Original Sound - Trending Audio</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="safe-zone safe-zone-outer" title="Action Safe (90%)" />
+                    <div className="safe-zone safe-zone-inner" title="Title Safe (80%)" />
+                  </>
+                ))}
 
               <div className="canvas-center-line horizontal" />
               <div className="canvas-center-line vertical" />
@@ -2124,41 +2631,92 @@ export function VideoSubtitleStudio() {
                     : segment.original;
                 if (!textToShow.trim()) return null;
 
-                const isTitle = segment.track === 0 || segment.y < 70;
+                const isSideSticker =
+                  segment.track === 2 || ((segment.x < 30 || segment.x > 70) && segment.y < 70);
+                const isTitleHeader = segment.track === 0 || (segment.y < 70 && !isSideSticker);
+                const isTitle = isTitleHeader || isSideSticker;
+
+                const hasSimultaneousSideStickers =
+                  isTitleHeader &&
+                  activeSegments.some(
+                    (other) =>
+                      other.id !== segment.id &&
+                      (other.x < 30 || other.x > 70) &&
+                      other.y < 70 &&
+                      Math.abs(other.y - segment.y) < 15,
+                  );
+
                 const segBg = segment.bgColor || bgColor || "#000000";
                 const segOutline = segment.outlineColor || outlineColor || segBg;
                 const segText = segment.textColor || textColor || getContrastTextColor(segBg);
 
                 const yPos = segment.displayY !== undefined ? segment.displayY : segment.y;
-                const titleFontSize = Math.min(
-                  Math.max(fontSize + 4, 28),
-                  textToShow.length > 40 ? 22 : textToShow.length > 20 ? 25 : 32,
-                );
-                const currentFontSize = isTitle ? titleFontSize : fontSize;
 
-                // Proportional auto-scaling:
                 const hasExplicitNewline = textToShow.includes("\n");
-                const lines = textToShow.split("\n");
-                const maxLineChars = Math.max(...lines.map((l) => l.trim().length), 1);
-                const lineCount = lines.length;
+                let formattedTitle = textToShow;
+                if (
+                  isTitleHeader &&
+                  !hasExplicitNewline &&
+                  yPos <= 28 &&
+                  (textToShow.length > 28 || (segment.boxH && segment.boxH > 100))
+                ) {
+                  const words = textToShow.split(" ");
+                  if (words.length >= 3) {
+                    const mid = Math.floor(textToShow.length / 2);
+                    let bestIdx = -1;
+                    let bestDist = 9999;
+                    let running = 0;
+                    for (let i = 0; i < words.length - 1; i++) {
+                      running += words[i].length + 1;
+                      const dist = Math.abs(running - mid);
+                      if (dist < bestDist) {
+                        bestDist = dist;
+                        bestIdx = i;
+                      }
+                    }
+                    if (bestIdx >= 0) {
+                      formattedTitle =
+                        words.slice(0, bestIdx + 1).join(" ") +
+                        "\n" +
+                        words.slice(bestIdx + 1).join(" ");
+                    }
+                  }
+                }
+                const isMultiLineTitle =
+                  isTitleHeader && (hasExplicitNewline || formattedTitle.includes("\n"));
+                const textToDisplay = isTitleHeader ? formattedTitle : textToShow;
 
-                // Auto-scale width to ALWAYS comfortably fit the text on one line without wrapping
-                const naturalTextW = Math.round(
-                  maxLineChars * (currentFontSize * 0.62) + padding * 3.5,
-                );
-                const targetW = segment.boxW ? Math.round(segment.boxW + 24) : naturalTextW;
-                // ALWAYS use Math.max so the box dynamically auto-scales wider to fit translated sentences on a single line!
-                const scaledMinWidth = Math.max(naturalTextW, targetW, isTitle ? 160 : 100);
+                let currentFontSize: number;
+                let padVert: number;
+                let padHoriz: number;
+                let boxRadius: number;
 
-                const naturalTextH = Math.round(lineCount * currentFontSize * 1.4 + padding * 1.8);
-                const scaledMinHeight = segment.boxH
-                  ? Math.min(
-                      Math.round(segment.boxH + 8),
-                      Math.max(naturalTextH, isTitle ? 60 : 44),
-                    )
-                  : isTitle
-                    ? "56px"
-                    : undefined;
+                if (isSideSticker) {
+                  currentFontSize = 10;
+                  padVert = 3;
+                  padHoriz = 6;
+                  boxRadius = 5;
+                } else if (isTitleHeader) {
+                  const maxHeaderChars = hasSimultaneousSideStickers ? 130 : 250;
+                  const isLong = textToDisplay.length > 20;
+                  const targetFs = Math.floor(maxHeaderChars / (textToDisplay.length * 0.52 + 1.5));
+                  currentFontSize = Math.max(9, Math.min(isLong ? 11 : 13, targetFs));
+                  padVert = isMultiLineTitle ? 6 : 4;
+                  padHoriz = 10;
+                  boxRadius = 6;
+                } else {
+                  currentFontSize = Math.min(fontSize, 18);
+                  padVert = Math.max(4, Math.round(padding * 0.5));
+                  padHoriz = Math.max(10, Math.round(padding * 1.0));
+                  boxRadius = borderRadius >= 50 ? 9999 : Math.min(borderRadius, 14);
+                }
+
+                const isDialogue = !isTitleHeader && !isSideSticker && yPos >= 70;
+                const effectiveMaskMode = isDialogue
+                  ? maskMode
+                  : maskMode === "Text outline"
+                    ? "Text outline"
+                    : "Fitted box";
 
                 return (
                   <div
@@ -2166,17 +2724,13 @@ export function VideoSubtitleStudio() {
                     className={cn(
                       "subtitle-overlay cursor-pointer",
                       isSelected && "selected",
-                      segment.track === 0 && "title-overlay",
+                      isTitleHeader && "title-overlay",
+                      isSideSticker && "callout-overlay",
                     )}
                     style={{
                       left: leftPos,
                       top: `${yPos}%`,
-                      transform:
-                        segment.anchor === "left" && !segment.boxW
-                          ? "translateX(0) translateY(-50%)"
-                          : segment.anchor === "right" && !segment.boxW
-                            ? "translateX(-100%) translateY(-50%)"
-                            : "translate(-50%, -50%)",
+                      transform: "translate(-50%, -50%)",
                       fontSize: `${currentFontSize}px`,
                       fontWeight: bold ? 700 : 600,
                       lineHeight: 1.35,
@@ -2188,7 +2742,12 @@ export function VideoSubtitleStudio() {
                             : "center",
                       zIndex: isSelected ? 40 : 25,
                       width: "max-content",
-                      maxWidth: isTitle ? "680px" : "92%",
+                      maxWidth:
+                        isTitleHeader && hasSimultaneousSideStickers
+                          ? "48%"
+                          : isTitle
+                            ? "96%"
+                            : "92%",
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -2202,43 +2761,42 @@ export function VideoSubtitleStudio() {
                         alignItems: "center",
                         justifyContent: "center",
                         backgroundColor:
-                          maskMode === "Fitted box" || maskMode === "Full-width bar"
+                          effectiveMaskMode === "Fitted box" ||
+                          effectiveMaskMode === "Full-width bar"
                             ? `rgba(${hexToRgb(segBg)}, 1)`
                             : "transparent",
                         padding:
-                          maskMode === "Fitted box"
-                            ? isTitle
-                              ? `${Math.max(padding + 2, 14)}px 24px`
-                              : `${padding}px ${Math.max(Math.round(padding * 2), 22)}px`
-                            : maskMode === "Full-width bar"
+                          effectiveMaskMode === "Fitted box"
+                            ? `${padVert}px ${padHoriz}px`
+                            : effectiveMaskMode === "Full-width bar"
                               ? `${padding}px 16px`
                               : "4px 8px",
-                        minWidth: maskMode === "Full-width bar" ? undefined : `${scaledMinWidth}px`,
-                        minHeight:
-                          maskMode === "Full-width bar"
-                            ? undefined
-                            : typeof scaledMinHeight === "number"
-                              ? `${scaledMinHeight}px`
-                              : scaledMinHeight,
+                        minWidth: effectiveMaskMode === "Full-width bar" ? "100%" : undefined,
+                        minHeight: isTitleHeader ? (isMultiLineTitle ? "54px" : "24px") : undefined,
                         borderRadius:
-                          maskMode === "Fitted box"
-                            ? borderRadius >= 50
+                          effectiveMaskMode === "Fitted box"
+                            ? boxRadius >= 50
                               ? "9999px"
-                              : `${borderRadius}px`
+                              : `${boxRadius}px`
                             : "0px",
                         border:
-                          maskMode === "Fitted box" && outlineWidth > 0
-                            ? `${outlineWidth}px solid ${segOutline}`
+                          effectiveMaskMode === "Fitted box" && outlineWidth > 0
+                            ? `${Math.min(outlineWidth, isSideSticker ? 1 : 2)}px solid ${segOutline}`
                             : "none",
                         color: segText,
-                        maxWidth: isTitle ? "680px" : "92%",
+                        maxWidth:
+                          isTitleHeader && hasSimultaneousSideStickers
+                            ? "48%"
+                            : isTitle
+                              ? "96%"
+                              : "92%",
                         width: "max-content",
-                        whiteSpace: hasExplicitNewline ? "pre-wrap" : "nowrap",
+                        whiteSpace: isTitleHeader || hasExplicitNewline ? "pre-wrap" : "nowrap",
                         overflowWrap: "break-word",
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
                       }}
                     >
-                      {textToShow}
+                      {textToDisplay}
                     </span>
 
                     {/* Transform Bounding Box (Only rendered when selected AND active at playhead) */}
@@ -2347,8 +2905,8 @@ export function VideoSubtitleStudio() {
             </IconButton>
           </div>
 
-          {selected ? (
-            inspectorTab === "segment" ? (
+          {inspectorTab === "style" || selected ? (
+            inspectorTab === "segment" && selected ? (
               <div className="inspector-content">
                 <div className="selection-heading">
                   <div className={cn("source-icon", selected.source.toLowerCase())}>
@@ -2579,6 +3137,146 @@ export function VideoSubtitleStudio() {
               </div>
             ) : (
               <div className="inspector-content">
+                <section className="property-section">
+                  <h3>Platform & Auto Reframe</h3>
+                  <div className="grid grid-cols-3 gap-1">
+                    <button
+                      type="button"
+                      className={cn(
+                        "px-1 py-1.5 text-[9px] rounded-md border transition-all text-center flex flex-col items-center gap-0.5",
+                        reframeTarget === "original"
+                          ? "border-editor-teal text-editor-teal bg-editor-teal/15 font-semibold"
+                          : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      )}
+                      onClick={() => setReframeTarget("original")}
+                      title="Keep original video aspect ratio"
+                    >
+                      <span>Original</span>
+                      <span className="text-[7px] opacity-70">Native AR</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        "px-1 py-1.5 text-[9px] rounded-md border transition-all text-center flex flex-col items-center gap-0.5",
+                        reframeTarget === "tiktok"
+                          ? "border-editor-teal text-editor-teal bg-editor-teal/15 font-semibold"
+                          : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      )}
+                      onClick={() => {
+                        setReframeTarget("tiktok");
+                        setShowSafeZones(true);
+                        setShowTikTokUI(true);
+                      }}
+                      title="Auto Reframe for TikTok / Shorts / Reels (9:16 Vertical)"
+                    >
+                      <Smartphone size={12} />
+                      <span>TikTok (9:16)</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        "px-1 py-1.5 text-[9px] rounded-md border transition-all text-center flex flex-col items-center gap-0.5",
+                        reframeTarget === "youtube"
+                          ? "border-editor-teal text-editor-teal bg-editor-teal/15 font-semibold"
+                          : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
+                      )}
+                      onClick={() => setReframeTarget("youtube")}
+                      title="Auto Reframe for YouTube Widescreen (16:9)"
+                    >
+                      <Monitor size={12} />
+                      <span>YouTube (16:9)</span>
+                    </button>
+                  </div>
+
+                  {reframeTarget !== "original" && (
+                    <div className="space-y-1.5 pt-1">
+                      <FieldLabel>Framing Mode</FieldLabel>
+                      <div className="grid grid-cols-3 gap-1">
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-1 py-1 text-[9px] rounded-md border transition-all text-center",
+                            reframeMode === "blur"
+                              ? "border-editor-teal text-editor-teal bg-editor-teal/15 font-semibold"
+                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
+                          )}
+                          onClick={() => setReframeMode("blur")}
+                        >
+                          Blur BG
+                        </button>
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-1 py-1 text-[9px] rounded-md border transition-all text-center",
+                            reframeMode === "crop"
+                              ? "border-editor-teal text-editor-teal bg-editor-teal/15 font-semibold"
+                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
+                          )}
+                          onClick={() => setReframeMode("crop")}
+                        >
+                          Crop Fill
+                        </button>
+                        <button
+                          type="button"
+                          className={cn(
+                            "px-1 py-1 text-[9px] rounded-md border transition-all text-center",
+                            reframeMode === "fit"
+                              ? "border-editor-teal text-editor-teal bg-editor-teal/15 font-semibold"
+                              : "border-border text-muted-foreground hover:bg-secondary hover:text-foreground",
+                          )}
+                          onClick={() => setReframeMode("fit")}
+                        >
+                          Black Bars
+                        </button>
+                      </div>
+
+                      {reframeTarget === "tiktok" && (
+                        <div className="pt-1">
+                          <FieldLabel>Caption Position Presets</FieldLabel>
+                          <div className="grid grid-cols-3 gap-1 mt-0.5">
+                            <button
+                              type="button"
+                              className="px-1 py-1 text-[8px] rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary text-center"
+                              onClick={() => {
+                                setSegments((prev) =>
+                                  prev.map((s) => (s.y >= 65 ? { ...s, y: 76 } : s)),
+                                );
+                                quickAction("Subtitles placed at TikTok Safe Lower Third (76%)");
+                              }}
+                            >
+                              Safe (76%)
+                            </button>
+                            <button
+                              type="button"
+                              className="px-1 py-1 text-[8px] rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary text-center"
+                              onClick={() => {
+                                setSegments((prev) =>
+                                  prev.map((s) => (s.y >= 65 ? { ...s, y: 50 } : s)),
+                                );
+                                quickAction("Subtitles placed at Center Hook (50%)");
+                              }}
+                            >
+                              Center (50%)
+                            </button>
+                            <button
+                              type="button"
+                              className="px-1 py-1 text-[8px] rounded border border-border text-muted-foreground hover:text-foreground hover:bg-secondary text-center"
+                              onClick={() => {
+                                setSegments((prev) =>
+                                  prev.map((s) => (s.y >= 65 ? { ...s, y: 62 } : s)),
+                                );
+                                quickAction("Subtitles aligned over centered original video (62%)");
+                              }}
+                            >
+                              Mask (62%)
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
+
                 <section className="property-section">
                   <h3>Mask & background</h3>
                   <label>
@@ -2999,49 +3697,95 @@ export function VideoSubtitleStudio() {
                         className="track-lane"
                         style={{ left: LABEL_WIDTH, width: timelineWidth }}
                       >
-                        {segments
-                          .filter((s) => s.track === trackIndex)
-                          .map((segment) => (
-                            <div
-                              key={segment.id}
-                              data-segment
-                              className={cn(
-                                "segment-block",
-                                `source-${segment.source.toLowerCase()}`,
-                                selectedId === segment.id && "selected",
-                                playhead >= segment.start &&
-                                  playhead <= segment.end &&
-                                  "active-at-playhead",
-                              )}
-                              style={{
-                                left: `${(segment.start / duration) * 100}%`,
-                                width: `${((segment.end - segment.start) / duration) * 100}%`,
-                              }}
-                              onPointerDown={(e) => beginTimelineDrag(e, segment, "move")}
-                            >
-                              <button
-                                className="trim-handle left"
-                                aria-label="Trim start"
-                                onPointerDown={(e) => beginTimelineDrag(e, segment, "trim-start")}
-                              />
-                              <div className="segment-content">
-                                <span className="segment-source">
-                                  {segment.source === "WHISPER" ? (
-                                    <Mic2 size={10} />
-                                  ) : (
-                                    <Eye size={10} />
-                                  )}
-                                </span>
-                                <p>{segment.translated || segment.original}</p>
-                                <small>{(segment.end - segment.start).toFixed(1)}s</small>
+                        {(() => {
+                          const trackSegments = segments.filter((s) => s.track === trackIndex);
+                          const hasOverlap = trackSegments.some((s1, i) =>
+                            trackSegments.some(
+                              (s2, j) =>
+                                i !== j &&
+                                Math.max(s1.start, s2.start) < Math.min(s1.end, s2.end) - 0.1,
+                            ),
+                          );
+                          return trackSegments.map((segment) => {
+                            let subLane = 0;
+                            if (hasOverlap) {
+                              const priorOverlap = trackSegments.find(
+                                (other) =>
+                                  other.id !== segment.id &&
+                                  Math.max(segment.start, other.start) <
+                                    Math.min(segment.end, other.end) - 0.1 &&
+                                  (other.id < segment.id ||
+                                    (other.id === segment.id && other.start <= segment.start)),
+                              );
+                              if (priorOverlap) {
+                                subLane = 1;
+                              }
+                            }
+                            return (
+                              <div
+                                key={segment.id}
+                                data-segment
+                                className={cn(
+                                  "segment-block",
+                                  `source-${segment.source.toLowerCase()}`,
+                                  selectedId === segment.id && "selected",
+                                  playhead >= segment.start &&
+                                    playhead <= segment.end &&
+                                    "active-at-playhead",
+                                  hasOverlap && "is-sublane",
+                                )}
+                                style={{
+                                  left: `${(segment.start / duration) * 100}%`,
+                                  width: `${((segment.end - segment.start) / duration) * 100}%`,
+                                  ...(hasOverlap
+                                    ? {
+                                        top: subLane === 0 ? "5px" : "33px",
+                                        height: "26px",
+                                      }
+                                    : {}),
+                                }}
+                                onPointerDown={(e) => beginTimelineDrag(e, segment, "move")}
+                              >
+                                <button
+                                  className="trim-handle left"
+                                  aria-label="Trim start"
+                                  onPointerDown={(e) => beginTimelineDrag(e, segment, "trim-start")}
+                                />
+                                <div
+                                  className="segment-content"
+                                  style={hasOverlap ? { padding: "2px 14px 2px 6px" } : undefined}
+                                >
+                                  <span className="segment-source">
+                                    {segment.source === "WHISPER" ? (
+                                      <Mic2 size={10} />
+                                    ) : (
+                                      <Eye size={10} />
+                                    )}
+                                  </span>
+                                  <p
+                                    style={
+                                      hasOverlap
+                                        ? { fontSize: "8px", margin: "1px 0 0" }
+                                        : undefined
+                                    }
+                                  >
+                                    {segment.translated || segment.original}
+                                  </p>
+                                  <small
+                                    style={hasOverlap ? { top: "2px", fontSize: "7px" } : undefined}
+                                  >
+                                    {(segment.end - segment.start).toFixed(1)}s
+                                  </small>
+                                </div>
+                                <button
+                                  className="trim-handle right"
+                                  aria-label="Trim end"
+                                  onPointerDown={(e) => beginTimelineDrag(e, segment, "trim-end")}
+                                />
                               </div>
-                              <button
-                                className="trim-handle right"
-                                aria-label="Trim end"
-                                onPointerDown={(e) => beginTimelineDrag(e, segment, "trim-end")}
-                              />
-                            </div>
-                          ))}
+                            );
+                          });
+                        })()}
                       </div>
                     </div>
                   );
@@ -3088,6 +3832,276 @@ export function VideoSubtitleStudio() {
             >
               <X size={13} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* BURN & EXPORT OPTIONS MODAL */}
+      {showBurnModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-panel border border-border rounded-xl shadow-2xl max-w-lg w-full p-6 space-y-5 text-foreground">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-editor-teal/15 text-editor-teal flex items-center justify-center">
+                  <Sparkle size={18} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-base">Burn & Export Video</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Select target format and auto-reframe settings
+                  </p>
+                </div>
+              </div>
+              <IconButton label="Close" onClick={() => setShowBurnModal(false)}>
+                <X size={16} />
+              </IconButton>
+            </div>
+
+            {/* 1. SELECT TARGET PLATFORM */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <span>1. Target Platform & Aspect Ratio</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2.5">
+                <button
+                  type="button"
+                  className={cn(
+                    "p-3 rounded-lg border-2 text-left transition-all flex flex-col gap-1.5 relative cursor-pointer",
+                    reframeTarget === "tiktok"
+                      ? "border-editor-teal bg-editor-teal/10 shadow-sm"
+                      : "border-border hover:border-muted-foreground/50 hover:bg-secondary/50",
+                  )}
+                  onClick={() => {
+                    setReframeTarget("tiktok");
+                    setShowSafeZones(true);
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <Smartphone
+                      size={18}
+                      className={
+                        reframeTarget === "tiktok" ? "text-editor-teal" : "text-muted-foreground"
+                      }
+                    />
+                    {reframeTarget === "tiktok" && (
+                      <span className="w-2 h-2 rounded-full bg-editor-teal" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-bold text-xs">TikTok / Shorts</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">
+                      9:16 · 1080×1920
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className={cn(
+                    "p-3 rounded-lg border-2 text-left transition-all flex flex-col gap-1.5 relative cursor-pointer",
+                    reframeTarget === "youtube"
+                      ? "border-editor-teal bg-editor-teal/10 shadow-sm"
+                      : "border-border hover:border-muted-foreground/50 hover:bg-secondary/50",
+                  )}
+                  onClick={() => setReframeTarget("youtube")}
+                >
+                  <div className="flex items-center justify-between">
+                    <Monitor
+                      size={18}
+                      className={
+                        reframeTarget === "youtube" ? "text-editor-teal" : "text-muted-foreground"
+                      }
+                    />
+                    {reframeTarget === "youtube" && (
+                      <span className="w-2 h-2 rounded-full bg-editor-teal" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-bold text-xs">YouTube</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">
+                      16:9 · 1920×1080
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className={cn(
+                    "p-3 rounded-lg border-2 text-left transition-all flex flex-col gap-1.5 relative cursor-pointer",
+                    reframeTarget === "original"
+                      ? "border-editor-teal bg-editor-teal/10 shadow-sm"
+                      : "border-border hover:border-muted-foreground/50 hover:bg-secondary/50",
+                  )}
+                  onClick={() => setReframeTarget("original")}
+                >
+                  <div className="flex items-center justify-between">
+                    <Film
+                      size={18}
+                      className={
+                        reframeTarget === "original" ? "text-editor-teal" : "text-muted-foreground"
+                      }
+                    />
+                    {reframeTarget === "original" && (
+                      <span className="w-2 h-2 rounded-full bg-editor-teal" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="font-bold text-xs">Original</div>
+                    <div className="text-[10px] text-muted-foreground font-mono truncate">
+                      {videoResolution ? videoResolution.split("·")[0].trim() : "Native AR"}
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. FRAMING MODE (when reframed) */}
+            {reframeTarget !== "original" && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  2. Framing Mode
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    className={cn(
+                      "p-2.5 rounded-lg border text-left transition-all cursor-pointer",
+                      reframeMode === "blur"
+                        ? "border-editor-teal bg-editor-teal/10 font-semibold"
+                        : "border-border hover:bg-secondary/50 text-muted-foreground",
+                    )}
+                    onClick={() => setReframeMode("blur")}
+                  >
+                    <div className="text-xs text-foreground font-medium">Blur Background</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      Smart blurred fill (No video content cut off)
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "p-2.5 rounded-lg border text-left transition-all cursor-pointer",
+                      reframeMode === "crop"
+                        ? "border-editor-teal bg-editor-teal/10 font-semibold"
+                        : "border-border hover:bg-secondary/50 text-muted-foreground",
+                    )}
+                    onClick={() => setReframeMode("crop")}
+                  >
+                    <div className="text-xs text-foreground font-medium">Crop to Fill</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      Fills full frame (Crops edges)
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "p-2.5 rounded-lg border text-left transition-all cursor-pointer",
+                      reframeMode === "fit"
+                        ? "border-editor-teal bg-editor-teal/10 font-semibold"
+                        : "border-border hover:bg-secondary/50 text-muted-foreground",
+                    )}
+                    onClick={() => setReframeMode("fit")}
+                  >
+                    <div className="text-xs text-foreground font-medium">Black Bars</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      Classic letterbox/pillarbox padding
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 3. TIKTOK CAPTION POSITION ADAPTATION */}
+            {reframeTarget === "tiktok" && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  3. Subtitle Positioning for TikTok
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    className="p-2 rounded-lg border border-border hover:border-editor-teal hover:bg-secondary/50 text-left transition-all cursor-pointer"
+                    onClick={() => {
+                      setSegments((prev) => prev.map((s) => (s.y >= 65 ? { ...s, y: 76 } : s)));
+                      quickAction("Subtitles placed at TikTok Safe Lower Third (76%)");
+                    }}
+                  >
+                    <div className="text-xs font-medium">TikTok Safe (76%)</div>
+                    <div className="text-[9px] text-muted-foreground mt-0.5">
+                      Above description & sound
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className="p-2 rounded-lg border border-border hover:border-editor-teal hover:bg-secondary/50 text-left transition-all cursor-pointer"
+                    onClick={() => {
+                      setSegments((prev) => prev.map((s) => (s.y >= 65 ? { ...s, y: 50 } : s)));
+                      quickAction("Subtitles placed at Center Hook (50%)");
+                    }}
+                  >
+                    <div className="text-xs font-medium">Center Hook (50%)</div>
+                    <div className="text-[9px] text-muted-foreground mt-0.5">
+                      Viral hook middle position
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className="p-2 rounded-lg border border-border hover:border-editor-teal hover:bg-secondary/50 text-left transition-all cursor-pointer"
+                    onClick={() => {
+                      setSegments((prev) => prev.map((s) => (s.y >= 65 ? { ...s, y: 62 } : s)));
+                      quickAction("Subtitles aligned over centered original video (62%)");
+                    }}
+                  >
+                    <div className="text-xs font-medium">Mask Original (62%)</div>
+                    <div className="text-[9px] text-muted-foreground mt-0.5">
+                      Covers original video text
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* SUMMARY INFO BOX */}
+            <div className="bg-secondary/60 border border-border rounded-lg p-3 text-xs flex items-center justify-between">
+              <div>
+                <span className="text-muted-foreground">Output: </span>
+                <strong className="text-foreground">
+                  {reframeTarget === "tiktok"
+                    ? "1080 × 1920 (9:16 Vertical)"
+                    : reframeTarget === "youtube"
+                      ? "1920 × 1080 (16:9 Landscape)"
+                      : "Original Resolution"}
+                </strong>
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {segments.length} subtitles · {maskMode}
+                </span>
+              </div>
+              <span className="font-mono text-editor-teal font-semibold text-[11px]">
+                H.264 / AAC
+              </span>
+            </div>
+
+            {/* ACTION BUTTONS */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border">
+              <Button variant="outline" size="sm" onClick={() => setShowBurnModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setShowBurnModal(false);
+                  burnAndExportVideo();
+                }}
+                disabled={isRendering}
+                className="gap-1.5 cursor-pointer"
+              >
+                <Sparkle size={14} />
+                {isRendering
+                  ? "Rendering..."
+                  : `Start Burn & Export (${reframeTarget === "tiktok" ? "TikTok 9:16" : reframeTarget === "youtube" ? "YouTube 16:9" : "Original"})`}
+              </Button>
+            </div>
           </div>
         </div>
       )}

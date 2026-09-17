@@ -42,8 +42,8 @@ from pydantic import BaseModel
 
 from app.transcriber import transcribe_video
 from app.translator import translate_segments, SUPPORTED_LANGUAGES
-from app.video_processor import get_video_info, generate_ass_file, generate_srt_content, burn_subtitles_to_video
-from app.video_ocr import detect_video_subtitle_regions, extract_subtitles_from_video_ocr, detect_video_subtitle_colors
+from app.video_processor import get_video_info, generate_ass_file, generate_srt_content, burn_subtitles_to_video, get_reframe_dimensions
+from app.video_ocr import detect_video_subtitle_regions, extract_subtitles_from_video_ocr, detect_video_subtitle_colors, get_contrast_text_color
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
@@ -101,7 +101,7 @@ def get_file_info(file_id: str) -> Optional[Dict]:
         
     if os.path.exists(UPLOADS_DIR):
         for fname in os.listdir(UPLOADS_DIR):
-            if fname.startswith(f"{file_id}_"):
+            if fname.startswith(f"{file_id}_") and fname.lower().endswith(('.mp4', '.mkv', '.avi', '.mov', '.webm')):
                 saved_path = os.path.join(UPLOADS_DIR, fname)
                 info = get_video_info(saved_path)
                 data = {
@@ -178,6 +178,8 @@ class RenderRequest(BaseModel):
     file_id: str
     segments: List[SegmentItem]
     style: StyleConfig
+    reframe_target: Optional[str] = "original"
+    reframe_mode: Optional[str] = "blur"
 
 @app.get("/api/languages")
 def get_languages():
@@ -263,15 +265,17 @@ def extract_video_subtitles_endpoint(req: ExtractVideoSubtitlesRequest):
         color_info = detect_video_subtitle_colors(file_info["saved_path"], data.get("segments", []))
         data["color_info"] = color_info
         seg_colors = color_info.get("segment_colors", {})
+        dominant_outline = color_info.get("dominant_outline", "#000000")
+        dominant_text = color_info.get("dominant_text", "#FFFFFF")
+        dominant_bg = color_info.get("dominant_bg", "#000000")
         for seg in data.get("segments", []):
             sid = seg.get("id")
-            if sid in seg_colors:
-                if seg_colors[sid].get("outline_color"):
-                    seg["outline_color"] = seg_colors[sid]["outline_color"]
-                if seg_colors[sid].get("bg_color"):
-                    seg["bg_color"] = seg_colors[sid]["bg_color"]
-                if seg_colors[sid].get("text_color"):
-                    seg["text_color"] = seg_colors[sid]["text_color"]
+            s_col = seg_colors.get(sid, {})
+            is_diag = float(seg.get("y_pct", 86.5)) >= 70.0
+            fallback_bg = dominant_bg if is_diag else color_info.get("dominant_title_accent", dominant_bg)
+            seg["bg_color"] = s_col.get("bg_color") or fallback_bg
+            seg["outline_color"] = s_col.get("outline_color") or (dominant_outline if is_diag else seg["bg_color"])
+            seg["text_color"] = s_col.get("text_color") or (dominant_text if is_diag else get_contrast_text_color(seg["bg_color"]))
 
         raw_transcript_path = os.path.join(UPLOADS_DIR, f"{req.file_id}_transcript.json")
         with open(raw_transcript_path, "w", encoding="utf-8") as f:
@@ -415,9 +419,10 @@ def auto_process(req: AutoProcessRequest):
             sid = s.get("id")
             s_col = seg_colors.get(sid, {})
             is_diag = float(s.get("y_pct", 86.5)) >= 70.0
-            s["outline_color"] = s_col.get("outline_color") or color_info.get("dominant_outline", dominant_bg)
-            s["bg_color"] = s_col.get("bg_color") or dominant_bg
-            s["text_color"] = s_col.get("text_color") or dominant_text
+            fallback_bg = dominant_bg if is_diag else color_info.get("dominant_title_accent", dominant_bg)
+            s["bg_color"] = s_col.get("bg_color") or fallback_bg
+            s["outline_color"] = s_col.get("outline_color") or (dominant_outline if is_diag else s["bg_color"])
+            s["text_color"] = s_col.get("text_color") or (dominant_text if is_diag else get_contrast_text_color(s["bg_color"]))
 
         auto_style = {
             "pos_x_pct": auto_x,
@@ -575,9 +580,10 @@ def detect_colors_endpoint(file_id: str):
                 sid = seg.get("id")
                 is_diag = float(seg.get("y_pct", 86.5)) >= 70.0
                 sc = seg_colors.get(sid, {})
-                seg["outline_color"] = sc.get("outline_color") or (dom_outline if is_diag else color_info.get("dominant_title_accent", dom_outline))
-                seg["bg_color"] = sc.get("bg_color") or dom_bg
-                seg["text_color"] = sc.get("text_color") or dom_text
+                fallback_bg = dom_bg if is_diag else color_info.get("dominant_title_accent", dom_bg)
+                seg["bg_color"] = sc.get("bg_color") or fallback_bg
+                seg["outline_color"] = sc.get("outline_color") or (dom_outline if is_diag else seg["bg_color"])
+                seg["text_color"] = sc.get("text_color") or (dom_text if is_diag else get_contrast_text_color(seg["bg_color"]))
 
             with open(state_path, "w", encoding="utf-8") as sf:
                 json.dump(state_data, sf, ensure_ascii=False, indent=2)
@@ -591,6 +597,8 @@ class SaveStateRequest(BaseModel):
     segments: List[SegmentItem]
     style: Optional[StyleConfig] = None
     target_lang: Optional[str] = "vi"
+    reframe_target: Optional[str] = "original"
+    reframe_mode: Optional[str] = "blur"
 
 @app.post("/api/save-state/{file_id}")
 def save_state_endpoint(file_id: str, req: SaveStateRequest):
@@ -614,7 +622,9 @@ def save_state_endpoint(file_id: str, req: SaveStateRequest):
             "file_id": file_id,
             "segments": segments_dict,
             "style": style_dict,
-            "target_lang": req.target_lang or "vi"
+            "target_lang": req.target_lang or "vi",
+            "reframe_target": req.reframe_target or "original",
+            "reframe_mode": req.reframe_mode or "blur"
         }, f, ensure_ascii=False, indent=2)
     return {"success": True, "message": "State saved successfully"}
 
@@ -953,13 +963,17 @@ def render_video(req: RenderRequest):
     w = file_info["info"]["width"]
     h = file_info["info"]["height"]
     
+    reframe_target = req.reframe_target or "original"
+    reframe_mode = req.reframe_mode or "blur"
+    target_w, target_h = get_reframe_dimensions(w, h, reframe_target)
+
     segments_dict = [s.model_dump() for s in req.segments]
     style_dict = req.style.model_dump()
     
     try:
         ass_filename = f"{req.file_id}_subtitles.ass"
         ass_path = os.path.join(EXPORTS_DIR, ass_filename)
-        generate_ass_file(segments_dict, ass_path, w, h, style_dict)
+        generate_ass_file(segments_dict, ass_path, target_w, target_h, style_dict)
         
         srt_filename = f"{req.file_id}_subtitles.srt"
         srt_path = os.path.join(EXPORTS_DIR, srt_filename)
@@ -970,7 +984,10 @@ def render_video(req: RenderRequest):
         output_filename = f"{req.file_id}_burned.mp4"
         output_path = os.path.join(EXPORTS_DIR, output_filename)
         
-        ok, err_msg = burn_subtitles_to_video(input_path, output_path, ass_path, w, h, style_dict)
+        ok, err_msg = burn_subtitles_to_video(
+            input_path, output_path, ass_path, w, h, style_dict,
+            reframe_target=reframe_target, reframe_mode=reframe_mode
+        )
         if not ok:
             return JSONResponse(status_code=500, content={"success": False, "detail": f"Rendering failed: {err_msg}"})
             
@@ -979,7 +996,11 @@ def render_video(req: RenderRequest):
             "video_url": f"/api/exports/{output_filename}",
             "srt_url": f"/api/exports/{srt_filename}",
             "ass_url": f"/api/exports/{ass_filename}",
-            "filename": output_filename
+            "filename": output_filename,
+            "reframe_target": reframe_target,
+            "reframe_mode": reframe_mode,
+            "target_width": target_w,
+            "target_height": target_h
         }
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "detail": f"Render error: {str(e)}"})
@@ -1049,6 +1070,8 @@ def load_video_project(file_id: str):
     segments = []
     style = {}
     target_lang = "vi"
+    reframe_target = "original"
+    reframe_mode = "blur"
     if os.path.exists(state_path):
         try:
             with open(state_path, "r", encoding="utf-8") as f:
@@ -1056,6 +1079,8 @@ def load_video_project(file_id: str):
                 segments = sdata.get("segments", [])
                 style = sdata.get("style", {})
                 target_lang = sdata.get("target_lang", "vi")
+                reframe_target = sdata.get("reframe_target", "original")
+                reframe_mode = sdata.get("reframe_mode", "blur")
         except Exception as e:
             print(f"Error reading state: {e}")
     if not segments and os.path.exists(transcript_path):
@@ -1083,7 +1108,24 @@ def load_video_project(file_id: str):
         "info": file_info["info"],
         "segments": segments,
         "style": style,
-        "target_lang": target_lang
+        "target_lang": target_lang,
+        "reframe_target": reframe_target,
+        "reframe_mode": reframe_mode
     }
+
+@app.get("/")
+@app.get("/index.html")
+async def serve_index():
+    index_path = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(
+            index_path,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
+    return JSONResponse(status_code=404, content={"message": "Frontend not found. Please build frontend."})
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

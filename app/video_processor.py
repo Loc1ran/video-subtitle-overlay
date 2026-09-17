@@ -174,7 +174,7 @@ def generate_ass_file(
         "ScriptType: v4.00+",
         f"PlayResX: {video_width}",
         f"PlayResY: {video_height}",
-        "WrapStyle: 0",
+        "WrapStyle: 2",
         "ScaledBorderAndShadow: yes",
         "",
         "[V4+ Styles]",
@@ -209,6 +209,9 @@ def generate_ass_file(
         else:
             anchor = r"\an5"
 
+        is_title = seg_y < int(video_height * 0.70)
+        is_side_callout = is_title and (seg_x < int(video_width * 0.28) or seg_x > int(video_width * 0.72))
+
         processed_entries.append({
             "seg": seg,
             "start": start_val,
@@ -216,27 +219,32 @@ def generate_ass_file(
             "x": seg_x,
             "y": seg_y,
             "anchor": anchor,
-            "text": text
+            "text": text,
+            "is_title": is_title,
+            "is_side_callout": is_side_callout,
         })
 
-    # Collision resolution for simultaneous segments
-    min_dist_px = max(int(font_size * 1.5), 65)
+    # Collision resolution: Only adjust if simultaneous segments genuinely overlap vertically (< min_gap)
     for i in range(len(processed_entries)):
         for j in range(i + 1, len(processed_entries)):
             e1 = processed_entries[i]
             e2 = processed_entries[j]
             # Dialogue subtitles (y >= 70%) must NEVER have their vertical position altered
             if e1["y"] >= int(video_height * 0.70) or e2["y"] >= int(video_height * 0.70):
-                # Clamp end time if consecutive dialogue segments have micro-overlap
                 if e1["y"] >= int(video_height * 0.70) and e2["y"] >= int(video_height * 0.70):
                     if e1["end"] > e2["start"]:
                         e1["end"] = e2["start"]
                 continue
             overlap = min(e1["end"], e2["end"]) - max(e1["start"], e2["start"])
             if overlap > 0.30:
+                is_horiz_overlap = abs(e1["x"] - e2["x"]) < int(video_width * 0.22)
+                if not is_horiz_overlap:
+                    continue
+                # Only separate if they are virtually identical in Y (< 25px apart)
                 diff = e2["y"] - e1["y"]
-                if abs(diff) < min_dist_px:
-                    needed = min_dist_px - abs(diff)
+                min_separation = 25
+                if abs(diff) < min_separation:
+                    needed = min_separation - abs(diff)
                     if diff >= 0:
                         e1["y"] = max(int(video_height * 0.08), e1["y"] - needed // 2)
                         e2["y"] = min(int(video_height * 0.65), e2["y"] + (needed - needed // 2))
@@ -244,21 +252,82 @@ def generate_ass_file(
                         e1["y"] = min(int(video_height * 0.65), e1["y"] + needed // 2)
                         e2["y"] = max(int(video_height * 0.08), e2["y"] - (needed - needed // 2))
 
+    # Detect if any center title has simultaneous side callouts nearby
+    for e in processed_entries:
+        if e["is_title"] and not e["is_side_callout"]:
+            e["has_side_callouts"] = any(
+                other["is_side_callout"] and
+                (min(e["end"], other["end"]) - max(e["start"], other["start"]) > 0.3) and
+                abs(other["y"] - e["y"]) < int(video_height * 0.15)
+                for other in processed_entries
+            )
+        else:
+            e["has_side_callouts"] = False
+
     for e in processed_entries:
         start_time = seconds_to_ass_time(e["start"])
         end_time = seconds_to_ass_time(e["end"])
         seg = e["seg"]
 
-        is_title = e["y"] < int(video_height * 0.70)
-        if is_title:
-            if len(e["text"]) > 40:
-                seg_font_size = max(font_size, int(22 * scale))
-            elif len(e["text"]) > 20:
-                seg_font_size = max(font_size + int(4 * scale), int(26 * scale))
+        has_cjk = any('\u4e00' <= c <= '\u9fff' for c in e["text"])
+        lines = [l.strip() for l in re.split(r'\\N|\n', e["text"]) if l.strip()]
+        if not lines:
+            lines = [e["text"].strip()]
+
+        raw_box_w = seg.get("box_w")
+        raw_box_h = seg.get("box_h")
+
+        # If it's a top title card (y <= 28%) and text is on 1 line, but original was multi-line (box_h > 100) or text is long (> 28 chars), auto-balance into 2 lines!
+        is_top_title = e["is_title"] and not e["is_side_callout"] and e["y"] <= int(video_height * 0.28)
+        if is_top_title and len(lines) == 1 and (len(lines[0]) > 28 or (raw_box_h and raw_box_h > 100)):
+            words = lines[0].split(" ")
+            if len(words) >= 3:
+                mid = len(lines[0]) // 2
+                best_idx = -1
+                best_dist = 9999
+                running = 0
+                for i, w in enumerate(words[:-1]):
+                    running += len(w) + 1
+                    dist = abs(running - mid)
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_idx = i
+                if best_idx >= 0:
+                    line1 = " ".join(words[:best_idx + 1])
+                    line2 = " ".join(words[best_idx + 1:])
+                    lines = [line1, line2]
+
+        line_count = len(lines)
+        max_line_chars = max(len(l) for l in lines) if lines else 1
+        clean_text = "\\N".join(lines)
+
+        if e["is_side_callout"]:
+            # Side sticker badge: compact font size, snug padding, small radius
+            seg_font_size = max(int(9 * scale), min(int(12 * scale), int(font_size * 0.40)))
+            pad_h = int(3 * scale)
+            pad_w = int(6 * scale)
+            border_r = int(5 * scale)
+            outline_w = max(1, int(1.5 * scale))
+        elif e["is_title"]:
+            # Center title header:
+            if e.get("has_side_callouts"):
+                max_header_w = int(video_width * 0.48)
             else:
-                seg_font_size = max(font_size + int(8 * scale), int(32 * scale))
+                max_header_w = int(video_width * 0.86)
+            char_w_est = 0.95 if has_cjk else 0.52
+            target_fs = int(max_header_w / (max(1, max_line_chars) * char_w_est + 1.5))
+            seg_font_size = max(int(10 * scale), min(int(13 * scale), target_fs))
+            pad_h = int(4 * scale)
+            pad_w = int(10 * scale)
+            border_r = int(6 * scale)
+            outline_w = max(1, int(2.0 * scale))
         else:
-            seg_font_size = font_size
+            # Dialogue
+            seg_font_size = min(font_size, int(20 * scale))
+            pad_h = int(bg_padding * 0.5 * scale)
+            pad_w = int(max(bg_padding * 1.2, 14) * scale)
+            border_r = int(border_radius_base * scale) if border_radius_base < 50 else 9999
+            outline_w = int(outline_width_px * scale) if outline_width_px > 0 else 0
 
         seg_text_color = seg.get("text_color") or text_color
         seg_bg_color = seg.get("bg_color") or bg_color
@@ -268,47 +337,36 @@ def generate_ass_file(
         bg_bgr = hex_to_ass_bgr(seg_bg_color)
         bg_alpha = opacity_to_ass_alpha(bg_opacity)
         outline_bgr = hex_to_ass_bgr(seg_outline_color)
-        outline_w = int(outline_width_px * scale) if outline_width_px > 0 else 0
 
-        lines = [l.strip() for l in re.split(r'\\N|\n', e["text"]) if l.strip()]
-        if not lines:
-            lines = [e["text"].strip()]
-        line_count = len(lines)
-        max_line_chars = max(len(l) for l in lines) if lines else 1
-        clean_text = "\\N".join(lines)
+        # Full-width bar is strictly for bottom dialogue subtitles; title cards and side stickers must always use fitted box
+        is_dialogue = not e["is_title"] and not e["is_side_callout"] and e["y"] >= int(video_height * 0.70)
+        effective_mask_mode = mask_mode if is_dialogue else ("outline" if mask_mode == "outline" else "box")
 
-        if mask_mode == "box":
-            has_cjk = any('\u4e00' <= c <= '\u9fff' for c in e["text"])
-            char_w = seg_font_size * (0.95 if has_cjk else 0.58)
-
-            pad_h = int(bg_padding * scale)
-            pad_w = int(max(bg_padding * 1.8, 16) * scale)
-
+        if effective_mask_mode == "box":
+            char_w = seg_font_size * (0.95 if has_cjk else 0.52)
             natural_w = int(max_line_chars * char_w + pad_w * 2)
-            natural_h = int(line_count * seg_font_size * 1.35 + pad_h * 1.6)
+            natural_h = int(line_count * seg_font_size * 1.30 + pad_h * 2)
 
-            raw_box_w = seg.get("box_w")
-            raw_box_h = seg.get("box_h")
-
-            if raw_box_w:
-                target_w = int(raw_box_w + 16 * scale)
-                calc_w = max(natural_w, target_w)
+            if e["is_side_callout"]:
+                calc_w = max(natural_w, int(raw_box_w if raw_box_w else 0))
+                calc_h = max(natural_h, int(raw_box_h if raw_box_h else 0))
+            elif e["is_title"]:
+                # Always cover the original height raw_box_h so original burned Chinese text NEVER peeks out!
+                min_title_h = int(raw_box_h) if raw_box_h else int(line_count * 32 * scale)
+                target_mask_h = max(natural_h, min_title_h)
+                calc_w = max(natural_w, int(raw_box_w + 80 if raw_box_w else 0))
+                calc_h = max(natural_h, target_mask_h)
             else:
-                calc_w = natural_w
+                calc_w = max(natural_w, int(raw_box_w + 16 if raw_box_w else 0))
+                calc_h = max(natural_h, int(raw_box_h + 8 if raw_box_h else 0))
 
-            if raw_box_h:
-                target_h = int(raw_box_h + 8 * scale)
-                calc_h = max(natural_h, target_h)
-            else:
-                calc_h = natural_h
-
-            box_w = min(int(video_width * 0.94), max(int(100 * scale), calc_w))
+            box_w = min(int(video_width * 0.94), max(int(50 * scale), calc_w))
             box_h = max(int(seg_font_size * 1.3), calc_h)
 
             if border_radius_base >= 50:
                 r = box_h // 2
             else:
-                r = int(border_radius_base * scale)
+                r = border_r
             r = max(0, min(r, box_w // 2, box_h // 2))
 
             rect_path = make_rounded_rect_path(box_w, box_h, r)
@@ -319,13 +377,13 @@ def generate_ass_file(
                 f"Dialogue: 0,{start_time},{end_time},CustomStyle,,0,0,0,,{{{box_tag}}}{rect_path}{{\\p0}}"
             )
 
-            # Layer 1: Text centered perfectly on top
-            txt_tag = f"\\an5\\pos({e['x']},{e['y']})\\c{text_bgr}\\1a&H00&\\bord0\\shad0\\fs{seg_font_size}\\fn{font_name}\\b{bold}"
+            # Layer 1: Text centered perfectly on top (with \q2 to prevent line wrapping)
+            txt_tag = f"\\an5\\pos({e['x']},{e['y']})\\c{text_bgr}\\1a&H00&\\bord0\\shad0\\fs{seg_font_size}\\fn{font_name}\\b{bold}\\q2"
             ass_lines.append(
                 f"Dialogue: 1,{start_time},{end_time},CustomStyle,,0,0,0,,{{{txt_tag}}}{clean_text}"
             )
 
-        elif mask_mode == "full_bar":
+        elif effective_mask_mode == "full_bar":
             bar_h = int(seg_font_size * 2.2)
             bar_path = make_rounded_rect_path(video_width, bar_h, 0)
             bar_tag = f"\\an5\\pos({video_width // 2},{e['y']})\\1c{bg_bgr}\\1a{bg_alpha}\\bord0\\shad0\\p1"
@@ -370,36 +428,91 @@ def generate_srt_content(segments: List[Dict]) -> str:
     return "\n".join(srt_lines)
 
 
+def get_reframe_dimensions(orig_w: int, orig_h: int, target: str = "original") -> Tuple[int, int]:
+    """Returns the output (width, height) for a given reframe target."""
+    target = (target or "original").lower()
+    if target in ("tiktok", "shorts", "reels", "9:16"):
+        return 1080, 1920
+    elif target in ("youtube", "widescreen", "16:9"):
+        return 1920, 1080
+    elif target in ("square", "1:1"):
+        return 1080, 1080
+    return orig_w, orig_h
+
+
 def burn_subtitles_to_video(
     input_video_path: str,
     output_video_path: str,
     ass_path: str,
     video_width: int,
     video_height: int,
-    style_config: Dict
+    style_config: Dict,
+    reframe_target: str = "original",
+    reframe_mode: str = "blur"
 ) -> Tuple[bool, str]:
     """
-    Renders the ASS subtitles onto the input video.
+    Renders the ASS subtitles onto the input video with optional auto-reframe
+    for TikTok (9:16), YouTube (16:9), or Square (1:1).
     """
     work_dir     = os.path.dirname(os.path.abspath(ass_path))
     ass_filename = os.path.basename(ass_path)
     
-    # All masking modes (rounded box, full-width bar, outline) are drawn with pixel-perfect vector
-    # accuracy directly inside the ASS file via Layer 0 and Layer 1.
-    vf_chain = f"ass={ass_filename}"
+    target_w, target_h = get_reframe_dimensions(video_width, video_height, reframe_target)
+    mode = (reframe_mode or "blur").lower()
     
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-i", os.path.abspath(input_video_path),
-        "-vf", vf_chain,
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "21",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        os.path.abspath(output_video_path)
-    ]
+    # Check if aspect ratios match closely (within 2%)
+    orig_ratio = video_width / max(1, video_height)
+    target_ratio = target_w / max(1, target_h)
+    aspect_diff = abs(orig_ratio - target_ratio)
+    
+    needs_reframe = (reframe_target or "original").lower() != "original" and aspect_diff > 0.02
+
+    cmd = ["ffmpeg", "-y", "-i", os.path.abspath(input_video_path)]
+
+    if not needs_reframe:
+        # Standard overlay without reframing canvas
+        vf_chain = f"ass={ass_filename}"
+        cmd.extend([
+            "-vf", vf_chain,
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "21",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            os.path.abspath(output_video_path)
+        ])
+    else:
+        # Auto Reframe with specified framing mode
+        if mode == "crop":
+            filter_str = (
+                f"[0:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,"
+                f"crop={target_w}:{target_h},ass={ass_filename}[outv]"
+            )
+        elif mode == "fit":
+            filter_str = (
+                f"[0:v]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,"
+                f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black,ass={ass_filename}[outv]"
+            )
+        else:  # "blur" (Smart blurred background fill)
+            filter_str = (
+                f"[0:v]split=2[bg_in][fg_in];"
+                f"[bg_in]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,"
+                f"crop={target_w}:{target_h},boxblur=25:5[bg];"
+                f"[fg_in]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease[fg];"
+                f"[bg][fg]overlay=(W-w)/2:(H-h)/2,ass={ass_filename}[outv]"
+            )
+
+        cmd.extend([
+            "-filter_complex", filter_str,
+            "-map", "[outv]",
+            "-map", "0:a?",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "21",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            os.path.abspath(output_video_path)
+        ])
     
     print("Running FFmpeg burn command:", " ".join(cmd))
     res = subprocess.run(cmd, cwd=work_dir, capture_output=True, text=True)

@@ -1,4 +1,4 @@
-﻿import time
+import time
 from typing import List, Dict
 from deep_translator import GoogleTranslator, MyMemoryTranslator
 
@@ -96,24 +96,40 @@ def translate_chunk_block(texts: List[str], target_lang: str = "vi", source_lang
 def translate_segments(segments: List[Dict], target_lang: str = "vi", source_lang: str = "auto") -> List[Dict]:
     """
     Translates all segments across the whole video in fast, efficient chunks.
+    Preserves multi-line structure for stacked titles/subtitles.
     """
     if not segments:
         return []
-        
+
+    # Flatten lines while keeping track of line counts per segment
+    line_counts = []
+    flat_lines = []
+    for seg in segments:
+        raw_t = seg.get("text", "").strip()
+        lines = [l.strip() for l in raw_t.split("\n") if l.strip()]
+        if not lines:
+            lines = [raw_t]
+        line_counts.append(len(lines))
+        flat_lines.extend(lines)
+
     chunk_size = 15
-    raw_texts = [seg.get("text", "").strip() for seg in segments]
-    translated_all = []
-    
-    for i in range(0, len(raw_texts), chunk_size):
-        chunk = raw_texts[i:i + chunk_size]
+    translated_lines = []
+    for i in range(0, len(flat_lines), chunk_size):
+        chunk = flat_lines[i:i + chunk_size]
         translated_chunk = translate_chunk_block(chunk, target_lang=target_lang, source_lang=source_lang)
-        translated_all.extend(translated_chunk)
+        translated_lines.extend(translated_chunk)
         time.sleep(0.1)
 
     result_segments = []
-    for seg, trans in zip(segments, translated_all):
+    cursor = 0
+    for seg, count in zip(segments, line_counts):
+        seg_trans_lines = translated_lines[cursor:cursor + count]
+        cursor += count
         updated = dict(seg)
-        updated["custom_text"] = trans if trans else seg.get("text", "")
+        if seg_trans_lines and any(seg_trans_lines):
+            updated["custom_text"] = "\n".join(seg_trans_lines)
+        else:
+            updated["custom_text"] = seg.get("text", "")
         result_segments.append(updated)
 
     return result_segments

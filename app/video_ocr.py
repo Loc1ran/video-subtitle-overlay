@@ -173,14 +173,29 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
         w = d.get("box_w", 100)
         h = d.get("box_h", 24)
 
+        is_upper = y < 70.0
         matched_track = None
         for trk in active_tracks:
             gap = t - trk["end"]
-            if 0 <= gap <= 0.45 or (gap < 0 and abs(gap) <= 0.30):
-                # Spatial proximity: Y within 7% of screen height, X within 20%
-                if abs(trk["y_pct"] - y) <= 7.0 and abs(trk["x_pct"] - x) <= 20.0:
+            trk_is_upper = trk["y_pct"] < 70.0
+            allowed_gap = 0.60 if (is_upper and trk_is_upper) else 0.45
+            if 0 <= gap <= allowed_gap or (gap < 0 and abs(gap) <= 0.30):
+                # Spatial proximity: Y within 3.2% for upper lines so stacked lines don't collide
+                max_dy = 3.2 if is_upper else 6.0
+                max_dx = 12.0 if is_upper else 20.0
+                if abs(trk["y_pct"] - y) <= max_dy and abs(trk["x_pct"] - x) <= max_dx:
                     sim = text_similarity(trk["text"], txt)
-                    if sim >= 0.30 or txt in trk["text"] or trk["text"] in txt or (len(txt) <= 5 and len(trk["text"]) <= 5 and sim >= 0.20):
+                    is_side_badge = (x < 30.0 or x > 70.0) and is_upper
+                    trk_is_side_badge = (trk["x_pct"] < 30.0 or trk["x_pct"] > 70.0) and trk_is_upper
+                    is_same_side_spot = is_side_badge and trk_is_side_badge and abs(trk["y_pct"] - y) <= 4.0 and abs(trk["x_pct"] - x) <= 6.0
+                    has_match = (
+                        sim >= 0.25 or
+                        txt in trk["text"] or
+                        trk["text"] in txt or
+                        len(set(txt) & set(trk["text"])) >= 2 or
+                        (is_same_side_spot and (len(set(txt) & set(trk["text"])) >= 1 or (len(txt) <= 3 and len(trk["text"]) <= 3)))
+                    )
+                    if has_match:
                         matched_track = trk
                         break
 
@@ -197,7 +212,9 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
         else:
             remaining_active = []
             for trk in active_tracks:
-                if t - trk["end"] > 0.45:
+                trk_is_upper = trk["y_pct"] < 70.0
+                timeout_gap = 0.60 if trk_is_upper else 0.45
+                if t - trk["end"] > timeout_gap:
                     if trk["end"] - trk["start"] >= 0.20:
                         completed_segments.append(trk)
                 else:
@@ -233,11 +250,19 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
 
         # Reject upper background noise (posters, banners, clothing logos, single-frame flickers)
         if not is_dialogue:
-            if dur < 0.55 or len(s["text"]) < 2:
+            if dur < 0.30 or len(s["text"].strip()) < 1:
+                continue
+            # Must contain CJK characters to eliminate Latin clothing logos (e.g. Yonex shirt)
+            has_cjk = any('\u4e00' <= c <= '\u9fff' for c in s["text"])
+            if not has_cjk:
+                continue
+            # Filter isolated 1-character visual noise on clothes/backgrounds unless sustained
+            if len(s["text"].strip()) <= 1 and (s["y_pct"] > 30.0 or dur < 1.2):
                 continue
             med_h = int(np.median(s["hs"])) if s.get("hs") else 30
             med_w = int(np.median(s["ws"])) if s.get("ws") else 120
-            if med_h > 120 or med_h > med_w * 0.75:
+            # Allow large video titles (up to 450px in 1080p) and square 1-2 char labels
+            if med_h > 450 or (med_h > med_w * 1.8 and len(s["text"]) > 2):
                 continue
 
         clean_s_text = re.sub(r'^[_\-*~]+', '', s["text"]).strip()
@@ -250,9 +275,18 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
         final_y = global_dialogue_y if is_dialogue else s["y_pct"]
         final_x = 50.0 if is_dialogue else s["x_pct"]
 
+        # Middle reaction stickers / callouts (35% <= Y <= 68%) that are roughly centered (38-62%)
+        # should snap to center (50%) and expand width to fully cover trailing punctuation (e.g. ！！！)
+        if not is_dialogue and 35.0 <= final_y <= 68.0 and 38.0 <= final_x <= 62.0:
+            final_x = 50.0
+            med_w = max(med_w + 200, 750)
+
         # Lead start timestamp by 0.12s to compensate for frame sampling interval quantization
         # so the overlay appears synchronously with the video's subtitle onset
-        lead_start = max(0.0, round(s["start"] - 0.12, 2))
+        lead_start = 0.0 if s["start"] <= 0.35 else max(0.0, round(s["start"] - 0.12, 2))
+
+        is_side_tag = (final_x < 30.0 or final_x > 70.0) and not is_dialogue
+        track_id = 2 if is_dialogue else (3 if is_side_tag else 1)
 
         valid_segments.append({
             "id": len(valid_segments) + 1,
@@ -262,13 +296,116 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
             "custom_text": clean_s_text,
             "x_pct": final_x,
             "y_pct": final_y,
+            "track_id": track_id,
             "anchor": r"\an5",
             "box_w": med_w,
             "box_h": med_h
         })
 
-    # Sort valid segments by start time
-    valid_segments.sort(key=lambda seg: (seg["start"], seg["y_pct"]))
+    # Merge vertically stacked multi-line titles / subtitles (belonging to the same sentence/wrapper)
+    merged_segments = []
+    used_indices = set()
+
+    for i in range(len(valid_segments)):
+        if i in used_indices:
+            continue
+        s1 = valid_segments[i]
+
+        # Side tags (track_id == 3 or (x < 30 or x > 70) and y < 70) should remain independent
+        is_s1_side = (s1["x_pct"] < 30.0 or s1["x_pct"] > 70.0) and s1["y_pct"] < 70.0
+        if is_s1_side or s1.get("track_id") == 3:
+            merged_segments.append(s1)
+            used_indices.add(i)
+            continue
+
+        group = [s1]
+        used_indices.add(i)
+
+        for j in range(i + 1, len(valid_segments)):
+            if j in used_indices:
+                continue
+            s2 = valid_segments[j]
+            is_s2_side = (s2["x_pct"] < 30.0 or s2["x_pct"] > 70.0) and s2["y_pct"] < 70.0
+            if is_s2_side or s2.get("track_id") == 3:
+                continue
+
+            # Both must be upper cards or both must be lower dialogue
+            s1_upper = s1["y_pct"] < 70.0
+            s2_upper = s2["y_pct"] < 70.0
+            if s1_upper != s2_upper:
+                continue
+
+            overlap = min(s1["end"], s2["end"]) - max(s1["start"], s2["start"])
+            dur1 = s1["end"] - s1["start"]
+            dur2 = s2["end"] - s2["start"]
+            min_dur = min(dur1, dur2)
+            if min_dur > 0 and (overlap / min_dur >= 0.70 or overlap >= 0.50):
+                is_same_col = abs(s1["x_pct"] - s2["x_pct"]) <= 15.0
+                min_y_dist = min(abs(s2["y_pct"] - g["y_pct"]) for g in group)
+                if is_same_col and 2.0 <= min_y_dist <= 10.0:
+                    group.append(s2)
+                    used_indices.add(j)
+
+        if len(group) > 1:
+            group.sort(key=lambda s: s["y_pct"])
+            combined_text = "\n".join(g["text"] for g in group)
+            combined_custom = "\n".join(g.get("custom_text", g["text"]) for g in group)
+            avg_y = round(sum(g["y_pct"] for g in group) / len(group), 1)
+            avg_x = round(sum(g["x_pct"] for g in group) / len(group), 1)
+            combined_w = max(g.get("box_w", 400) for g in group)
+            combined_h = sum(g.get("box_h", 60) for g in group)
+            start_t = min(g["start"] for g in group)
+            end_t = max(g["end"] for g in group)
+
+            merged_segments.append({
+                "id": len(merged_segments) + 1,
+                "start": start_t,
+                "end": end_t,
+                "text": combined_text,
+                "custom_text": combined_custom,
+                "x_pct": avg_x,
+                "y_pct": avg_y,
+                "track_id": group[0].get("track_id", 1),
+                "anchor": r"\an5",
+                "box_w": combined_w,
+                "box_h": combined_h
+            })
+        else:
+            merged_segments.append(s1)
+
+    # Bridge consecutive side badges at the same position with a small gap (<= 1.5s)
+    bridged_segments = []
+    skip_badge_ids = set()
+    for i in range(len(merged_segments)):
+        if i in skip_badge_ids:
+            continue
+        seg1 = merged_segments[i]
+        is_side1 = (seg1["x_pct"] < 30.0 or seg1["x_pct"] > 70.0) and seg1["y_pct"] < 70.0
+        if is_side1:
+            curr_seg = dict(seg1)
+            for j in range(i + 1, len(merged_segments)):
+                if j in skip_badge_ids:
+                    continue
+                seg2 = merged_segments[j]
+                is_side2 = (seg2["x_pct"] < 30.0 or seg2["x_pct"] > 70.0) and seg2["y_pct"] < 70.0
+                if is_side2 and abs(curr_seg["x_pct"] - seg2["x_pct"]) <= 5.0 and abs(curr_seg["y_pct"] - seg2["y_pct"]) <= 5.0:
+                    gap = seg2["start"] - curr_seg["end"]
+                    if -0.5 <= gap <= 1.6:
+                        curr_seg["end"] = max(curr_seg["end"], seg2["end"])
+                        if len(seg2["text"]) > len(curr_seg["text"]):
+                            curr_seg["text"] = seg2["text"]
+                            curr_seg["custom_text"] = seg2.get("custom_text", seg2["text"])
+                        skip_badge_ids.add(j)
+            bridged_segments.append(curr_seg)
+        else:
+            bridged_segments.append(seg1)
+    merged_segments = bridged_segments
+
+    # Re-index ids and sort by start time
+    merged_segments.sort(key=lambda seg: (seg["start"], seg["y_pct"]))
+    for idx, seg in enumerate(merged_segments):
+        seg["id"] = idx + 1
+    valid_segments = merged_segments
 
     # Eliminate timestamp micro-overlaps for consecutive dialogue lines to prevent flickering
     for i in range(len(valid_segments) - 1):
@@ -278,7 +415,7 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
             if s_cur["end"] > s_next["start"]:
                 s_cur["end"] = round(s_next["start"], 2)
 
-    # Nudge ONLY if two simultaneous upper cards virtually collide on the exact same line (< 5%)
+    # Nudge ONLY if two simultaneous upper cards virtually collide on the exact same line (< 5%) and column
     for i in range(len(valid_segments)):
         for j in range(i + 1, len(valid_segments)):
             s1 = valid_segments[i]
@@ -289,6 +426,9 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
             # Check if simultaneous title intervals overlap with duration > 0.3s
             overlap = min(s1["end"], s2["end"]) - max(s1["start"], s2["start"])
             if overlap > 0.30:
+                is_horiz = abs(s1["x_pct"] - s2["x_pct"]) < 22.0
+                if not is_horiz:
+                    continue
                 y_diff = s2["y_pct"] - s1["y_pct"]
                 min_separation = 5.0
                 if abs(y_diff) < min_separation:
@@ -329,10 +469,11 @@ def extract_subtitles_from_video_ocr(video_path: str, sample_interval: float = 0
 
     reader = get_ocr_reader()
 
-    # Upper/middle band (titles, cards, side captions)
-    u_top, u_bot = int(frame_h * 0.25), int(frame_h * 0.72)
+    # Upper & Middle band (titles, cards, side captions, top hook headers, character reactions)
+    # Starts at 4% down to 70% to ensure middle reaction stickers and upper titles are captured
+    u_top, u_bot = int(frame_h * 0.04), int(frame_h * 0.70)
     # Bottom dialogue band
-    b_top, b_bot = int(frame_h * 0.72), int(frame_h * 0.95)
+    b_top, b_bot = int(frame_h * 0.70), int(frame_h * 0.96)
 
     step_frames = max(1, int(sample_interval * fps))
     raw_detections = []
@@ -356,52 +497,67 @@ def extract_subtitles_from_video_ocr(video_path: str, sample_interval: float = 0
         if not ret or frame is None:
             break
 
-        # 1. UPPER/MIDDLE BAND (Intro 0-5s scanned every frame; thereafter scanned every 0.5s or on motion)
-        check_upper = (t_sec <= 5.0) or (f_idx % (step_frames * 2) == 0)
-        if check_upper:
-            u_roi = frame[u_top:u_bot, :]
-            u_gray = cv2.cvtColor(u_roi, cv2.COLOR_BGR2GRAY)
-            should_u = True
-            if prev_u_gray is not None and prev_u_gray.shape == u_gray.shape:
-                if float(np.mean(cv2.absdiff(prev_u_gray, u_gray))) < 2.5:
-                    should_u = False
-            prev_u_gray = u_gray
-
-            if should_u:
-                try:
-                    res_u = reader.readtext(u_roi)
-                    for bbox, text, conf in res_u:
-                        clean_t = clean_ocr_text(text)
-                        clean_t = re.sub(r'(?<=[\u4e00-\u9fff])\-(?=[\u4e00-\u9fff])', '一', clean_t)
-                        clean_t = re.sub(r'^[_\-*~]+', '', clean_t).strip()
-                        cjk_len = len(re.findall(r'[\u4e00-\u9fff]', clean_t))
-                        min_conf = 0.02 if cjk_len >= 2 else 0.42
-                        if conf < min_conf:
-                            continue
-                        if not re.search(r'[\u4e00-\u9fff]', clean_t) or len(clean_t) < 2:
-                            continue
-                        ys = [p[1] + u_top for p in bbox]
-                        xs = [p[0] for p in bbox]
-                        box_h = int(max(ys) - min(ys))
-                        box_w = int(max(xs) - min(xs))
-                        # Reject non-subtitle shapes (posters, banners, clothing logos, tall background elements)
-                        if box_h > 120 or box_h > box_w * 0.75:
-                            continue
-                        y_pct = round(sum(ys) / len(ys) / frame_h * 100.0, 1)
-                        x_pct = round(sum(xs) / len(xs) / frame_w * 100.0, 1)
+        # 1. UPPER/MIDDLE BAND (4% to 70%)
+        u_roi = frame[u_top:u_bot, :]
+        u_gray = cv2.cvtColor(u_roi, cv2.COLOR_BGR2GRAY)
+        should_u = True
+        if prev_u_gray is not None and prev_u_gray.shape == u_gray.shape:
+            if float(np.mean(cv2.absdiff(prev_u_gray, u_gray))) < 2.5:
+                recent_u = [d for d in raw_detections if d.get("region") == "upper" and (t_sec - d["time"] <= 0.60)]
+                seen_pos = set()
+                for last in reversed(recent_u):
+                    pos_key = (round(last["x_pct"] / 3.0), round(last["y_pct"] / 3.0))
+                    if pos_key not in seen_pos:
+                        seen_pos.add(pos_key)
                         raw_detections.append({
                             "time": t_sec,
-                            "text": clean_t,
-                            "x_pct": x_pct,
-                            "y_pct": y_pct,
-                            "box_w": box_w,
-                            "box_h": box_h,
+                            "text": last["text"],
+                            "x_pct": last["x_pct"],
+                            "y_pct": last["y_pct"],
+                            "box_w": last["box_w"],
+                            "box_h": last["box_h"],
                             "region": "upper"
                         })
-                except Exception:
-                    pass
+                should_u = False
+        prev_u_gray = u_gray
 
-        # 2. BOTTOM DIALOGUE BAND (72% to 95%)
+        if should_u:
+            try:
+                # 0.70x scaling provides fast inference and high accuracy for screen titles/callouts
+                u_scaled = cv2.resize(u_roi, None, fx=0.70, fy=0.70, interpolation=cv2.INTER_AREA)
+                res_u = reader.readtext(u_scaled)
+                for bbox, text, conf in res_u:
+                    clean_t = clean_ocr_text(text)
+                    clean_t = re.sub(r'(?<=[\u4e00-\u9fff])\-(?=[\u4e00-\u9fff])', '一', clean_t)
+                    clean_t = re.sub(r'^[_\-*~]+', '', clean_t).strip()
+                    cjk_len = len(re.findall(r'[\u4e00-\u9fff]', clean_t))
+                    min_conf = 0.001 if cjk_len >= 1 else 0.35
+                    if conf < min_conf:
+                        continue
+                    if not re.search(r'[\u4e00-\u9fff]', clean_t) and not re.search(r'[a-zA-Z0-9]', clean_t):
+                        continue
+                    ys = [int(p[1] / 0.70) + u_top for p in bbox]
+                    xs = [int(p[0] / 0.70) for p in bbox]
+                    box_h = int(max(ys) - min(ys))
+                    box_w = int(max(xs) - min(xs))
+                    # Allow large video titles (up to 450px in 1080p) and square 1-2 char labels
+                    if box_h > 450 or (box_h > box_w * 1.8 and len(clean_t) > 2):
+                        continue
+                    y_pct = round(sum(ys) / len(ys) / frame_h * 100.0, 1)
+                    x_pct = round(sum(xs) / len(xs) / frame_w * 100.0, 1)
+                    raw_detections.append({
+                        "time": t_sec,
+                        "text": clean_t,
+                        "x_pct": x_pct,
+                        "y_pct": y_pct,
+                        "box_w": box_w,
+                        "box_h": box_h,
+                        "region": "upper"
+                    })
+            except Exception:
+                pass
+
+        # 2. BOTTOM DIALOGUE BAND (70% to 96%)
         b_roi = frame[b_top:b_bot, :]
         b_gray = cv2.cvtColor(b_roi, cv2.COLOR_BGR2GRAY)
         should_b = True
@@ -679,11 +835,13 @@ def detect_video_subtitle_colors(video_path: str, segments: List[Dict] = None) -
                 detected_accents.append(accent_color)
 
             if sid is not None:
+                accent = accent_color or "#000000"
+                contrast_t = get_contrast_text_color(accent) if accent_color else "#FFFFFF"
                 segment_colors[sid] = {
                     "accent_color": accent_color,
-                    "outline_color": accent_color or "#A0456D",
-                    "bg_color": accent_color or "#A0456D",
-                    "text_color": "#FFFFFF",
+                    "outline_color": accent or "#000000",
+                    "bg_color": accent or "#000000",
+                    "text_color": contrast_t,
                     "raw_text_color": "#FFFFFF"
                 }
 
@@ -730,12 +888,13 @@ def detect_video_subtitle_colors(video_path: str, segments: List[Dict] = None) -
                     "raw_text_color": dominant_dialogue_bg if dominant_dialogue_bg != "#000000" else "#FFFFFF"
                 }
             else:
-                accent = segment_colors.get(sid, {}).get("bg_color") or dominant_title_accent
+                accent = segment_colors.get(sid, {}).get("bg_color") or segment_colors.get(sid, {}).get("outline_color") or dominant_title_accent
+                contrast_t = get_contrast_text_color(accent) if accent else "#FFFFFF"
                 segment_colors[sid] = {
                     "accent_color": accent,
                     "outline_color": accent,
                     "bg_color": accent,
-                    "text_color": get_contrast_text_color(accent),
+                    "text_color": contrast_t,
                     "raw_text_color": "#FFFFFF"
                 }
 

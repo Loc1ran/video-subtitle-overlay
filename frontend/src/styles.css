@@ -627,6 +627,15 @@
   box-shadow: 0 14px 40px oklch(0 0 0 / 45%);
   user-select: none;
 }
+.video-stage.reframe-tiktok {
+  aspect-ratio: 9/16;
+}
+.video-stage.reframe-youtube {
+  aspect-ratio: 16/9;
+}
+.video-stage.reframe-square {
+  aspect-ratio: 1/1;
+}
 .video-stage > img {
   width: 100%;
   height: 100%;
@@ -643,6 +652,96 @@
 }
 .safe-zone-inner {
   inset: 10%;
+}
+.tiktok-safe-zone {
+  pointer-events: none;
+  position: absolute;
+  top: 10%;
+  bottom: 22%;
+  left: 5%;
+  right: 16%;
+  border: 1.5px dashed rgba(45, 212, 191, 0.45);
+  border-radius: 8px;
+  background: rgba(45, 212, 191, 0.04);
+}
+.tiktok-safe-zone::before {
+  content: "TikTok Safe Zone";
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font: 600 8px var(--font-mono);
+  color: #2dd4bf;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.8;
+}
+.tiktok-ui-overlay {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  user-select: none;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.tiktok-ui-top {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.tiktok-ui-right {
+  position: absolute;
+  right: 8px;
+  bottom: 85px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+.tiktok-ui-right-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.tiktok-ui-right-item span {
+  font-size: 10px;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.tiktok-ui-bottom {
+  position: absolute;
+  bottom: 14px;
+  left: 12px;
+  right: 65px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+}
+.tiktok-ui-bottom .author {
+  font-size: 13px;
+  font-weight: 700;
+}
+.tiktok-ui-bottom .caption {
+  font-size: 11px;
+  line-height: 1.3;
+  opacity: 0.9;
+}
+.tiktok-ui-bottom .sound {
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.85;
 }
 .canvas-center-line {
   pointer-events: none;
