@@ -1,4 +1,4 @@
-﻿# Video Subtitle Studio 🎬
+# Video Subtitle Studio 🎬
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://www.python.org/)
@@ -47,8 +47,8 @@ Designed for content creators, localizers, and video editors who need to transla
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/video-subtitle-studio.git
-   cd video-subtitle-studio
+   git clone https://github.com/Loc1ran/video-subtitle-overlay.git
+   cd video-subtitle-overlay
    ```
 
 2. **Install Python dependencies**:
