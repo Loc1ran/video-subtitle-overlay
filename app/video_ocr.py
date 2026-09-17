@@ -3,7 +3,6 @@ import cv2
 import re
 import difflib
 import numpy as np
-import easyocr
 from typing import Dict, List
 
 _ocr_reader = None
@@ -11,6 +10,7 @@ _ocr_reader = None
 def get_ocr_reader():
     global _ocr_reader
     if _ocr_reader is None:
+        import easyocr
         print("Initializing EasyOCR reader (Chinese & English)...")
         _ocr_reader = easyocr.Reader(["ch_sim", "en"], gpu=False, verbose=False)
     return _ocr_reader

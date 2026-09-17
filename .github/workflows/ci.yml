@@ -66,8 +66,8 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          # Pre-install CPU-only PyTorch to avoid massive CUDA wheel downloads
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          # Pre-install CPU-only PyTorch and torchvision to avoid massive CUDA wheel downloads
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
