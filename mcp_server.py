@@ -2,12 +2,10 @@ import os
 import sys
 import json
 from typing import List, Dict, Optional, Any
-try:
-    from mcp.server.fastmcp import FastMCP
-    mcp = FastMCP("video-subtitle-studio")
-except ImportError:
-    print("[Error] 'mcp' package is not installed. Please run: pip install mcp")
-    sys.exit(1)
+from mcp.server.fastmcp import FastMCP
+
+# Initialize FastMCP Server
+mcp = FastMCP("video-subtitle-studio")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
@@ -102,7 +100,15 @@ def get_transcript(file_id: str, model_size: str = "tiny", language: str = "auto
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 @mcp.tool()
-def update_subtitles(file_id: str, segments_json: str, pos_y_pct: float = 86.5, font_size: int = 26, bg_padding: int = 15) -> str:
+def update_subtitles(
+    file_id: str,
+    segments_json: str,
+    pos_y_pct: float = 86.5,
+    font_size: int = 26,
+    bg_padding: int = 15,
+    reframe_target: str = "original",
+    flip_horizontal: bool = False
+) -> str:
     """
     Updates the video subtitles with high-quality AI translations and generates the ASS and SRT subtitle files.
     - file_id: ID of the video project.
@@ -110,6 +116,8 @@ def update_subtitles(file_id: str, segments_json: str, pos_y_pct: float = 86.5, 
     - pos_y_pct: Vertical position in % (default 86.5% to perfectly cover speech subtitles).
     - font_size: Font size in pixels (default 26).
     - bg_padding: Padding of black background masking box to fully cover original hardcoded subtitles (default 15).
+    - reframe_target: Aspect ratio preset ("original", "tiktok", "youtube", "square").
+    - flip_horizontal: Mirror video horizontally and mirror subtitle coordinates.
     """
     video_path = find_video_path(file_id)
     if not video_path:
@@ -122,10 +130,11 @@ def update_subtitles(file_id: str, segments_json: str, pos_y_pct: float = 86.5, 
     except Exception as e:
         return json.dumps({"error": f"Invalid segments_json: {str(e)}"})
         
-    from app.video_processor import get_video_info, generate_ass_file, generate_srt_content
+    from app.video_processor import get_video_info, generate_ass_file, generate_srt_content, get_reframe_dimensions
     info = get_video_info(video_path)
     w = info.get("width", 1024)
     h = info.get("height", 576)
+    target_w, target_h = get_reframe_dimensions(w, h, reframe_target)
     
     style_dict = {
         "pos_x_pct": 50.0,
@@ -143,7 +152,7 @@ def update_subtitles(file_id: str, segments_json: str, pos_y_pct: float = 86.5, 
     }
     
     ass_path = os.path.join(EXPORTS_DIR, f"{file_id}_subtitles.ass")
-    generate_ass_file(segments, ass_path, w, h, style_dict)
+    generate_ass_file(segments, ass_path, target_w, target_h, style_dict, flip_horizontal=flip_horizontal)
     
     srt_path = os.path.join(EXPORTS_DIR, f"{file_id}_subtitles.srt")
     srt_content = generate_srt_content(segments)
@@ -155,7 +164,9 @@ def update_subtitles(file_id: str, segments_json: str, pos_y_pct: float = 86.5, 
         json.dump({
             "file_id": file_id,
             "segments": segments,
-            "style": style_dict
+            "style": style_dict,
+            "reframe_target": reframe_target,
+            "flip_horizontal": flip_horizontal
         }, f, ensure_ascii=False, indent=2)
         
     return json.dumps({
@@ -163,13 +174,30 @@ def update_subtitles(file_id: str, segments_json: str, pos_y_pct: float = 86.5, 
         "message": f"Updated {len(segments)} subtitle segments. ASS and SRT files saved.",
         "ass_path": ass_path,
         "srt_path": srt_path,
-        "style": style_dict
+        "style": style_dict,
+        "reframe_target": reframe_target
     }, indent=2)
 
 @mcp.tool()
-def render_subtitled_video(file_id: str, pos_y_pct: float = 86.5, font_size: int = 26, bg_padding: int = 15) -> str:
+def render_subtitled_video(
+    file_id: str,
+    pos_y_pct: float = 86.5,
+    font_size: int = 26,
+    bg_padding: int = 15,
+    reframe_target: str = "original",
+    reframe_mode: str = "blur",
+    flip_horizontal: bool = False
+) -> str:
     """
-    Burns the updated subtitles with the black masking box onto the video using FFmpeg.
+    Burns the updated subtitles onto the video using FFmpeg with optional auto-reframe
+    for TikTok (9:16), YouTube (16:9), or Square (1:1).
+    - file_id: ID of the video project.
+    - pos_y_pct: Vertical position in % (default 86.5%).
+    - font_size: Font size in pixels (default 26).
+    - bg_padding: Padding of masking box (default 15).
+    - reframe_target: Aspect ratio preset ("original", "tiktok", "youtube", "square").
+    - reframe_mode: Reframing background fill ("blur", "crop", "fit").
+    - flip_horizontal: Mirror video horizontally.
     Returns: JSON with output video path and download URL.
     """
     video_path = find_video_path(file_id)
@@ -203,13 +231,20 @@ def render_subtitled_video(file_id: str, pos_y_pct: float = 86.5, font_size: int
         "bold": True
     }
     
-    ok, err_msg = burn_subtitles_to_video(video_path, output_path, ass_path, w, h, style_dict)
+    ok, err_msg = burn_subtitles_to_video(
+        video_path, output_path, ass_path, w, h, style_dict,
+        reframe_target=reframe_target, reframe_mode=reframe_mode,
+        flip_horizontal=flip_horizontal
+    )
     if not ok:
         return json.dumps({"error": f"Rendering failed: {err_msg}"})
         
     return json.dumps({
         "success": True,
         "burned_video_path": output_path,
+        "reframe_target": reframe_target,
+        "reframe_mode": reframe_mode,
+        "flip_horizontal": flip_horizontal,
         "download_url": f"http://localhost:8000/api/exports/{output_filename}"
     }, indent=2)
 

@@ -17,6 +17,7 @@ import {
   Download,
   Eye,
   Film,
+  FlipHorizontal,
   FolderOpen,
   GripVertical,
   Heart,
@@ -383,6 +384,7 @@ export function VideoSubtitleStudio() {
   const [reframeTarget, setReframeTarget] = useState<"original" | "tiktok" | "youtube">("original");
   const [reframeMode, setReframeMode] = useState<"blur" | "crop" | "fit">("blur");
   const [showTikTokUI, setShowTikTokUI] = useState(true);
+  const [flipHorizontal, setFlipHorizontal] = useState(false);
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -540,6 +542,11 @@ export function VideoSubtitleStudio() {
       }
       if (data.reframe_mode) {
         setReframeMode(data.reframe_mode);
+      }
+      if (data.flip_horizontal !== undefined) {
+        setFlipHorizontal(Boolean(data.flip_horizontal));
+      } else {
+        setFlipHorizontal(false);
       }
 
       if (data.segments && Array.isArray(data.segments)) {
@@ -707,10 +714,11 @@ export function VideoSubtitleStudio() {
   // --------------------------------------------------------------------------
   // PERSISTENCE & AUTO-SAVE
   // --------------------------------------------------------------------------
-  function scheduleAutoSave(itemsToSave: Segment[]) {
+  function scheduleAutoSave(itemsToSave: Segment[], flipOverride?: boolean) {
     setIsSaved(false);
     if (!currentFileId) return;
     if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
+    const effectiveFlip = flipOverride !== undefined ? flipOverride : flipHorizontal;
     saveTimeoutRef.current = window.setTimeout(async () => {
       try {
         const payload = {
@@ -768,6 +776,7 @@ export function VideoSubtitleStudio() {
           current_time: playhead,
           reframe_target: reframeTarget,
           reframe_mode: reframeMode,
+          flip_horizontal: effectiveFlip,
         };
         await fetch(`/api/save-state/${currentFileId}`, {
           method: "POST",
@@ -777,6 +786,19 @@ export function VideoSubtitleStudio() {
         setIsSaved(true);
       } catch {}
     }, 800);
+  }
+
+  function toggleFlipHorizontal() {
+    setFlipHorizontal((prev) => {
+      const next = !prev;
+      scheduleAutoSave(segments, next);
+      quickAction(
+        next
+          ? "Video flipped horizontally (Mirrored) · Subtitles preserved"
+          : "Video reverted to normal orientation",
+      );
+      return next;
+    });
   }
 
   // --------------------------------------------------------------------------
@@ -1436,6 +1458,7 @@ export function VideoSubtitleStudio() {
         },
         reframe_target: reframeTarget,
         reframe_mode: reframeMode,
+        flip_horizontal: flipHorizontal,
       };
 
       const res = await fetch("/api/render", {
@@ -1680,9 +1703,10 @@ export function VideoSubtitleStudio() {
   function moveCanvasDrag(event: React.PointerEvent) {
     if (!canvasDragRef.current || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
-    const newX = Math.round(
+    const rawX = Math.round(
       Math.max(4, Math.min(96, ((event.clientX - rect.left) / rect.width) * 100)),
     );
+    const newX = flipHorizontal ? 100 - rawX : rawX;
     const newY = Math.round(
       Math.max(5, Math.min(95, ((event.clientY - rect.top) / rect.height) * 100)),
     );
@@ -2224,10 +2248,29 @@ export function VideoSubtitleStudio() {
                 <span>{formatTime(duration)}</span>
               </div>
               <strong>{videoFilename}</strong>
-              <small>{videoResolution}</small>
-              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                <FolderOpen size={14} /> Replace source
-              </Button>
+              <div className="flex flex-col gap-1.5 w-full mt-1">
+                <Button
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full"
+                >
+                  <FolderOpen size={14} /> Replace source
+                </Button>
+                <Button
+                  variant={flipHorizontal ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "w-full gap-1.5 text-xs",
+                    flipHorizontal &&
+                      "bg-editor-teal hover:bg-editor-teal/90 text-white font-semibold",
+                  )}
+                  onClick={toggleFlipHorizontal}
+                  title="Mirror video horizontally · Preserves transcript OCR"
+                >
+                  <FlipHorizontal size={14} />
+                  {flipHorizontal ? "Video Flipped (Mirrored)" : "Flip Video (Horizontal)"}
+                </Button>
+              </div>
             </div>
           )}
         </aside>
@@ -2346,6 +2389,26 @@ export function VideoSubtitleStudio() {
                   </button>
                 </div>
               )}
+
+              {/* Flip Video (Horizontal Mirror) Toggle */}
+              <button
+                type="button"
+                className={cn(
+                  "shrink-0 px-2 py-0.5 rounded border transition-colors flex items-center gap-1 cursor-pointer text-[10px]",
+                  flipHorizontal
+                    ? "bg-editor-teal/20 border-editor-teal/40 text-editor-teal font-semibold shadow-xs"
+                    : "bg-background/80 border-border text-muted-foreground hover:text-foreground hover:bg-secondary",
+                )}
+                onClick={toggleFlipHorizontal}
+                title={
+                  flipHorizontal
+                    ? "Video is horizontally mirrored (Transcript OCR preserved). Click to revert."
+                    : "Flip video horizontally (Mirror) · Preserves transcript OCR"
+                }
+              >
+                <FlipHorizontal size={11} className={flipHorizontal ? "text-editor-teal" : ""} />
+                <span>{flipHorizontal ? "Flipped (Mirrored)" : "Flip Video"}</span>
+              </button>
             </div>
 
             <div className="flex items-center gap-1">
@@ -2478,11 +2541,13 @@ export function VideoSubtitleStudio() {
                       muted
                       tabIndex={-1}
                       className="absolute inset-0 w-full h-full object-cover filter blur-xl scale-125 brightness-75 -z-10 pointer-events-none"
+                      style={flipHorizontal ? { transform: "scaleX(-1) scale(1.25)" } : undefined}
                     />
                   )}
                   <video
                     ref={videoRef}
                     src={videoUrl}
+                    style={flipHorizontal ? { transform: "scaleX(-1)" } : undefined}
                     className={cn(
                       "w-full h-full block",
                       reframeTarget === "original"
@@ -2617,14 +2682,19 @@ export function VideoSubtitleStudio() {
               {/* Active Subtitle Overlays (With Collision Avoidance) */}
               {positionedActiveSegments.map((segment) => {
                 const isSelected = segment.id === selectedId;
-                const isLeft = segment.anchor === "left";
-                const isRight = segment.anchor === "right";
+                const isLeft = flipHorizontal
+                  ? segment.anchor === "right"
+                  : segment.anchor === "left";
+                const isRight = flipHorizontal
+                  ? segment.anchor === "left"
+                  : segment.anchor === "right";
                 const justify = isLeft
                   ? "translateX(0)"
                   : isRight
                     ? "translateX(-100%)"
                     : "translateX(-50%)";
-                const leftPos = `${segment.x}%`;
+                const effectiveX = flipHorizontal ? 100 - (segment.x ?? 50) : (segment.x ?? 50);
+                const leftPos = `${effectiveX}%`;
                 const textToShow =
                   segment.translated !== undefined && segment.translated !== null
                     ? segment.translated
@@ -2880,6 +2950,17 @@ export function VideoSubtitleStudio() {
               </button>
               <IconButton label="Loop segment" active={loop} onClick={() => setLoop((v) => !v)}>
                 <RotateCcw size={14} />
+              </IconButton>
+              <IconButton
+                label={
+                  flipHorizontal
+                    ? "Video Horizontally Flipped (Mirror ON). Click to revert."
+                    : "Flip Video Horizontally (Mirror). Preserves transcript OCR."
+                }
+                active={flipHorizontal}
+                onClick={toggleFlipHorizontal}
+              >
+                <FlipHorizontal size={14} />
               </IconButton>
             </div>
           </div>
@@ -3275,6 +3356,38 @@ export function VideoSubtitleStudio() {
                       )}
                     </div>
                   )}
+                </section>
+
+                <section className="property-section">
+                  <h3>Video Transform</h3>
+                  <div className="flex items-center justify-between p-2 rounded-md border border-border bg-secondary/30">
+                    <div className="flex items-center gap-2">
+                      <FlipHorizontal
+                        size={16}
+                        className={flipHorizontal ? "text-editor-teal" : "text-muted-foreground"}
+                      />
+                      <div>
+                        <div className="text-xs font-medium text-foreground">
+                          Flip Video (Mirror)
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          Horizontally mirror video · preserves transcript OCR
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className={cn(
+                        "px-2.5 py-1 text-xs rounded font-medium transition-colors cursor-pointer shrink-0",
+                        flipHorizontal
+                          ? "bg-editor-teal text-white font-semibold"
+                          : "bg-background border border-border text-foreground hover:bg-secondary",
+                      )}
+                      onClick={toggleFlipHorizontal}
+                    >
+                      {flipHorizontal ? "Flipped" : "Flip Video"}
+                    </button>
+                  </div>
                 </section>
 
                 <section className="property-section">
@@ -4061,6 +4174,58 @@ export function VideoSubtitleStudio() {
               </div>
             )}
 
+            {/* FLIP / MIRROR VIDEO */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
+                <span>Video Mirror / Flip (Horizontal)</span>
+                <span className="text-[10px] text-editor-teal font-normal">
+                  keeps transcript OCR intact
+                </span>
+              </label>
+              <button
+                type="button"
+                className={cn(
+                  "w-full p-2.5 rounded-lg border text-left transition-all flex items-center justify-between cursor-pointer",
+                  flipHorizontal
+                    ? "border-editor-teal bg-editor-teal/10 text-foreground"
+                    : "border-border hover:bg-secondary/50 text-muted-foreground hover:text-foreground",
+                )}
+                onClick={toggleFlipHorizontal}
+              >
+                <div className="flex items-center gap-2.5">
+                  <FlipHorizontal
+                    size={18}
+                    className={flipHorizontal ? "text-editor-teal" : "text-muted-foreground"}
+                  />
+                  <div>
+                    <div className="text-xs font-medium text-foreground">
+                      {flipHorizontal
+                        ? "Horizontal Flip (Mirror) Enabled"
+                        : "Horizontal Flip (Mirror) Disabled"}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {flipHorizontal
+                        ? "Video is burned horizontally mirrored. Subtitles are positioned over mirrored video."
+                        : "Standard original video orientation without horizontal mirroring."}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    "w-8 h-4 rounded-full transition-colors relative flex items-center p-0.5 shrink-0",
+                    flipHorizontal ? "bg-editor-teal" : "bg-muted-foreground/30",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "w-3 h-3 rounded-full bg-white transition-transform",
+                      flipHorizontal ? "translate-x-4" : "translate-x-0",
+                    )}
+                  />
+                </div>
+              </button>
+            </div>
+
             {/* SUMMARY INFO BOX */}
             <div className="bg-secondary/60 border border-border rounded-lg p-3 text-xs flex items-center justify-between">
               <div>
@@ -4075,6 +4240,7 @@ export function VideoSubtitleStudio() {
                 <span className="text-muted-foreground">
                   {" "}
                   · {segments.length} subtitles · {maskMode}
+                  {flipHorizontal && " · Mirrored"}
                 </span>
               </div>
               <span className="font-mono text-editor-teal font-semibold text-[11px]">

@@ -31,6 +31,12 @@ Designed for content creators, localizers, and video editors who need to transla
   - Included Chrome/Edge extension bridges Video Subtitle Studio directly with **ChatGPT**, **DeepSeek**, **Claude**, and **Gemini**.
   - Automatically types translation prompts with context rules, waits for streaming output, and syncs translations straight back to the editor.
   - Built-in machine translation fallback via `deep-translator`.
+- **🪞 Horizontal Video Mirroring (Flip Video)**:
+  - Mirror or flip videos horizontally with a single click while automatically keeping transcript OCR boxes, subtitle coordinates, and readable translations intact.
+  - Seamlessly supported during timeline playback preview, ASS generation, and FFmpeg export across standard and reframed modes.
+- **📱 Smart Video Auto-Reframe**:
+  - Convert videos between TikTok / Shorts / Reels (9:16), YouTube (16:9), and native aspect ratios.
+  - Choose between Blurred Background duplicate, Center Crop to Fill, and Letterboxed Black Bars with TikTok UI safe-zone guides.
 - **🔥 Dual-Layer ASS Vector Subtitle Burning**:
   - Precision vector subtitle rendering using FFmpeg and Advanced SubStation Alpha (`.ass`).
   - Exports burned `.mp4` video, `.srt` standard subtitle file, and `.ass` styled subtitle file.

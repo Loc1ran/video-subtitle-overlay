@@ -15,7 +15,7 @@ def get_ocr_reader():
         _ocr_reader = easyocr.Reader(["ch_sim", "en"], gpu=False, verbose=False)
     return _ocr_reader
 
-def detect_video_subtitle_regions(video_path: str, max_samples: int = 12) -> Dict:
+def detect_video_subtitle_regions(video_path: str, max_samples: int = 12, flip_ocr: bool = False) -> Dict:
     """
     Scans video frames across the timeline to detect where burned-in/hardcoded subtitles exist.
     Calculates their exact vertical Y percentage, horizontal X percentage, and height.
@@ -51,6 +51,8 @@ def detect_video_subtitle_regions(video_path: str, max_samples: int = 12) -> Dic
             ret, frame = cap.read()
             if not ret or frame is None:
                 continue
+            if flip_ocr:
+                frame = cv2.flip(frame, 1)
                 
             timestamp = round(f_idx / fps, 2)
             
@@ -443,7 +445,7 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
     return valid_segments
 
 
-def extract_subtitles_from_video_ocr(video_path: str, sample_interval: float = 0.25, lang_list: list = None, progress_callback = None) -> Dict:
+def extract_subtitles_from_video_ocr(video_path: str, sample_interval: float = 0.25, lang_list: list = None, progress_callback = None, flip_ocr: bool = False) -> Dict:
     """
     Extracts all on-screen burned-in subtitle lines directly from video frames across ALL areas:
     - Upper/middle region (25% - 72%): Captures intro titles, cards, topic headers, reactions.
@@ -496,6 +498,8 @@ def extract_subtitles_from_video_ocr(video_path: str, sample_interval: float = 0
         ret, frame = cap.read()
         if not ret or frame is None:
             break
+        if flip_ocr:
+            frame = cv2.flip(frame, 1)
 
         # 1. UPPER/MIDDLE BAND (4% to 70%)
         u_roi = frame[u_top:u_bot, :]

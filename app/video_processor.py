@@ -139,7 +139,8 @@ def generate_ass_file(
     output_ass_path: str,
     video_width: int,
     video_height: int,
-    style_config: Dict
+    style_config: Dict,
+    flip_horizontal: bool = False
 ) -> str:
     """
     Generates an Advanced SubStation Alpha (.ass) subtitle file.
@@ -200,12 +201,18 @@ def generate_ass_file(
         end_val = float(seg.get("end") if seg.get("end") is not None else 0.0)
         seg_x_pct = float(seg["x_pct"]) if seg.get("x_pct") is not None else pos_x_pct
         seg_y_pct = float(seg["y_pct"]) if seg.get("y_pct") is not None else pos_y_pct
+        if flip_horizontal:
+            seg_x_pct = 100.0 - seg_x_pct
         seg_x = int(video_width * (seg_x_pct / 100.0))
         seg_y = int(video_height * (seg_y_pct / 100.0))
 
         explicit_anchor = seg.get("anchor")
         if explicit_anchor and explicit_anchor not in [r"\an4", r"\an6", "left", "right"]:
             anchor = explicit_anchor if explicit_anchor.startswith("\\") else f"\\{explicit_anchor}"
+        elif explicit_anchor in [r"\an4", "left"]:
+            anchor = r"\an6" if flip_horizontal else r"\an4"
+        elif explicit_anchor in [r"\an6", "right"]:
+            anchor = r"\an4" if flip_horizontal else r"\an6"
         else:
             anchor = r"\an5"
 
@@ -448,7 +455,8 @@ def burn_subtitles_to_video(
     video_height: int,
     style_config: Dict,
     reframe_target: str = "original",
-    reframe_mode: str = "blur"
+    reframe_mode: str = "blur",
+    flip_horizontal: bool = False
 ) -> Tuple[bool, str]:
     """
     Renders the ASS subtitles onto the input video with optional auto-reframe
@@ -471,7 +479,7 @@ def burn_subtitles_to_video(
 
     if not needs_reframe:
         # Standard overlay without reframing canvas
-        vf_chain = f"ass={ass_filename}"
+        vf_chain = f"hflip,ass={ass_filename}" if flip_horizontal else f"ass={ass_filename}"
         cmd.extend([
             "-vf", vf_chain,
             "-c:v", "libx264",
@@ -483,19 +491,20 @@ def burn_subtitles_to_video(
         ])
     else:
         # Auto Reframe with specified framing mode
+        flip_prefix = "hflip," if flip_horizontal else ""
         if mode == "crop":
             filter_str = (
-                f"[0:v]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,"
+                f"[0:v]{flip_prefix}scale={target_w}:{target_h}:force_original_aspect_ratio=increase,"
                 f"crop={target_w}:{target_h},ass={ass_filename}[outv]"
             )
         elif mode == "fit":
             filter_str = (
-                f"[0:v]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,"
+                f"[0:v]{flip_prefix}scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,"
                 f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black,ass={ass_filename}[outv]"
             )
         else:  # "blur" (Smart blurred background fill)
             filter_str = (
-                f"[0:v]split=2[bg_in][fg_in];"
+                f"[0:v]{flip_prefix}split=2[bg_in][fg_in];"
                 f"[bg_in]scale={target_w}:{target_h}:force_original_aspect_ratio=increase,"
                 f"crop={target_w}:{target_h},boxblur=25:5[bg];"
                 f"[fg_in]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease[fg];"

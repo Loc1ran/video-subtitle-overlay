@@ -10,6 +10,7 @@ from app.video_processor import (
     seconds_to_ass_time,
     generate_srt_content,
     generate_ass_file,
+    get_reframe_dimensions,
 )
 
 def test_hex_to_ass_color():
@@ -107,3 +108,112 @@ def test_generate_ass_file():
     finally:
         if os.path.exists(ass_path):
             os.remove(ass_path)
+
+def test_get_reframe_dimensions():
+    assert get_reframe_dimensions(1920, 1080, "original") == (1920, 1080)
+    assert get_reframe_dimensions(1920, 1080, "tiktok") == (1080, 1920)
+    assert get_reframe_dimensions(1920, 1080, "shorts") == (1080, 1920)
+    assert get_reframe_dimensions(1080, 1920, "youtube") == (1920, 1080)
+    assert get_reframe_dimensions(1920, 1080, "square") == (1080, 1080)
+
+def test_burn_subtitles_with_reframe():
+    import subprocess
+    from app.video_processor import burn_subtitles_to_video, get_video_info
+    
+    with tempfile.TemporaryDirectory() as tmpdir:
+        input_vid = os.path.join(tmpdir, "in.mp4")
+        out_vid = os.path.join(tmpdir, "out_tiktok.mp4")
+        ass_path = os.path.join(tmpdir, "test.ass")
+        
+        # Generate 1s 640x360 test video
+        subprocess.run([
+            "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25",
+            "-t", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p", input_vid
+        ], check=True, capture_output=True)
+        
+        segments = [{"id": 1, "start": 0.0, "end": 1.0, "text": "Reframe Test", "custom_text": "Reframe Test"}]
+        generate_ass_file(segments, ass_path, 1080, 1920, {"font_size": 28, "mask_mode": "box"})
+        
+        ok, msg = burn_subtitles_to_video(
+            input_vid, out_vid, ass_path, 640, 360, {},
+            reframe_target="tiktok", reframe_mode="blur"
+        )
+        assert ok is True
+        assert os.path.exists(out_vid)
+        
+        info = get_video_info(out_vid)
+        assert info["width"] == 1080
+        assert info["height"] == 1920
+
+def test_generate_ass_file_flipped():
+    segments = [
+        {
+            "id": 1,
+            "start": 1.0,
+            "end": 3.5,
+            "text": "Original Chinese OCR",
+            "custom_text": "Translated Text",
+            "x_pct": 20.0,
+            "y_pct": 85.0,
+            "anchor": r"\an4"
+        }
+    ]
+    style_config = {
+        "pos_x_pct": 50.0,
+        "pos_y_pct": 85.0,
+        "font_name": "Arial",
+        "font_size": 24,
+        "text_color": "#FFFFFF",
+        "bg_color": "#000000",
+        "bg_opacity": 0.9,
+        "bg_padding": 12,
+        "mask_mode": "box",
+        "bold": True
+    }
+
+    with tempfile.NamedTemporaryFile(suffix=".ass", delete=False) as tf:
+        ass_path = tf.name
+
+    try:
+        generate_ass_file(segments, ass_path, video_width=1000, video_height=500, style_config=style_config, flip_horizontal=True)
+        assert os.path.exists(ass_path)
+        with open(ass_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            # 100 - 20 = 80%, so pos x should be 800
+            assert "\\pos(800," in content
+            # Center alignment with \an5 for box and text
+            assert "\\an5" in content
+            # Translated text should be preserved intact
+            assert "Translated Text" in content
+    finally:
+        if os.path.exists(ass_path):
+            os.remove(ass_path)
+
+def test_burn_subtitles_with_flip():
+    import subprocess
+    from app.video_processor import burn_subtitles_to_video, get_video_info
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        input_vid = os.path.join(tmpdir, "in.mp4")
+        out_vid = os.path.join(tmpdir, "out_flipped.mp4")
+        ass_path = os.path.join(tmpdir, "test.ass")
+
+        subprocess.run([
+            "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25",
+            "-t", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p", input_vid
+        ], check=True, capture_output=True)
+
+        segments = [{"id": 1, "start": 0.0, "end": 1.0, "text": "Flip Test", "custom_text": "Flip Test", "x_pct": 25.0}]
+        generate_ass_file(segments, ass_path, 640, 360, {"font_size": 24, "mask_mode": "box"}, flip_horizontal=True)
+
+        ok, msg = burn_subtitles_to_video(
+            input_vid, out_vid, ass_path, 640, 360, {},
+            reframe_target="original", flip_horizontal=True
+        )
+        assert ok is True
+        assert os.path.exists(out_vid)
+
+        info = get_video_info(out_vid)
+        assert info["width"] == 640
+        assert info["height"] == 360
+

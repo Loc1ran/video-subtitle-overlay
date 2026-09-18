@@ -149,10 +149,13 @@ class AutoProcessRequest(BaseModel):
     enable_ocr: Optional[bool] = True
     enable_transcribe: Optional[bool] = True
     translation_mode: Optional[str] = "none"  # "none", "ai_chat", "machine"
+    flip_horizontal: Optional[bool] = False
+    flip_ocr: Optional[bool] = False
 
 class ExtractVideoSubtitlesRequest(BaseModel):
     file_id: str
     sample_interval: Optional[float] = 0.25
+    flip_ocr: Optional[bool] = False
 
 class TranslateRequest(BaseModel):
     segments: List[SegmentItem]
@@ -180,6 +183,7 @@ class RenderRequest(BaseModel):
     style: StyleConfig
     reframe_target: Optional[str] = "original"
     reframe_mode: Optional[str] = "blur"
+    flip_horizontal: Optional[bool] = False
 
 @app.get("/api/languages")
 def get_languages():
@@ -259,7 +263,12 @@ def extract_video_subtitles_endpoint(req: ExtractVideoSubtitlesRequest):
             "found_count": 0,
             "engine": "Screen OCR"
         }
-        data = extract_subtitles_from_video_ocr(file_info["saved_path"], sample_interval=req.sample_interval or 0.25, progress_callback=on_ocr_progress)
+        data = extract_subtitles_from_video_ocr(
+            file_info["saved_path"],
+            sample_interval=req.sample_interval or 0.25,
+            progress_callback=on_ocr_progress,
+            flip_ocr=bool(req.flip_ocr)
+        )
         
         # Automatically detect transcript colors from video frames
         color_info = detect_video_subtitle_colors(file_info["saved_path"], data.get("segments", []))
@@ -328,7 +337,7 @@ def auto_process(req: AutoProcessRequest):
     try:
         if source_mode == "video_ocr":
             # Extract on-screen subtitles directly from video frames using OCR!
-            ocr_data = extract_subtitles_from_video_ocr(video_path, progress_callback=on_ocr_progress)
+            ocr_data = extract_subtitles_from_video_ocr(video_path, progress_callback=on_ocr_progress, flip_ocr=bool(req.flip_ocr))
             segments = ocr_data.get("segments", [])
             auto_y = ocr_data.get("detected_y_pct", 86.5)
             auto_x = ocr_data.get("detected_x_pct", 50.0)
@@ -359,7 +368,7 @@ def auto_process(req: AutoProcessRequest):
                     "found_count": 0,
                     "engine": engine_name
                 }
-                ocr_result = detect_video_subtitle_regions(video_path)
+                ocr_result = detect_video_subtitle_regions(video_path, flip_ocr=bool(req.flip_ocr))
                 auto_y = ocr_result.get("detected_y_pct", 88.0)
                 auto_x = ocr_result.get("detected_x_pct", 50.0)
                 auto_font_size = ocr_result.get("recommended_font_size", 26)
@@ -446,7 +455,8 @@ def auto_process(req: AutoProcessRequest):
             json.dump({
                 "file_id": req.file_id,
                 "segments": final_segments,
-                "style": auto_style
+                "style": auto_style,
+                "flip_horizontal": bool(req.flip_horizontal)
             }, f, ensure_ascii=False, indent=2)
             
         # If user chose AI Chat mode, queue it right away
@@ -599,6 +609,7 @@ class SaveStateRequest(BaseModel):
     target_lang: Optional[str] = "vi"
     reframe_target: Optional[str] = "original"
     reframe_mode: Optional[str] = "blur"
+    flip_horizontal: Optional[bool] = False
 
 @app.post("/api/save-state/{file_id}")
 def save_state_endpoint(file_id: str, req: SaveStateRequest):
@@ -624,7 +635,8 @@ def save_state_endpoint(file_id: str, req: SaveStateRequest):
             "style": style_dict,
             "target_lang": req.target_lang or "vi",
             "reframe_target": req.reframe_target or "original",
-            "reframe_mode": req.reframe_mode or "blur"
+            "reframe_mode": req.reframe_mode or "blur",
+            "flip_horizontal": bool(req.flip_horizontal)
         }, f, ensure_ascii=False, indent=2)
     return {"success": True, "message": "State saved successfully"}
 
@@ -939,7 +951,8 @@ def submit_ai_job(req: SubmitJobRequest):
         w = int(info_dict.get("width", 1280))
         h = int(info_dict.get("height", 720))
         ass_path = os.path.join(EXPORTS_DIR, f"{file_id}_subtitles.ass")
-        generate_ass_file(segments, ass_path, w, h, style_dict)
+        flip_h = bool(project_state.get("flip_horizontal", False))
+        generate_ass_file(segments, ass_path, w, h, style_dict, flip_horizontal=flip_h)
         srt_path = os.path.join(EXPORTS_DIR, f"{file_id}_subtitles.srt")
         with open(srt_path, "w", encoding="utf-8") as sf:
             sf.write(generate_srt_content(segments))
@@ -965,6 +978,7 @@ def render_video(req: RenderRequest):
     
     reframe_target = req.reframe_target or "original"
     reframe_mode = req.reframe_mode or "blur"
+    flip_horizontal = bool(req.flip_horizontal)
     target_w, target_h = get_reframe_dimensions(w, h, reframe_target)
 
     segments_dict = [s.model_dump() for s in req.segments]
@@ -973,7 +987,7 @@ def render_video(req: RenderRequest):
     try:
         ass_filename = f"{req.file_id}_subtitles.ass"
         ass_path = os.path.join(EXPORTS_DIR, ass_filename)
-        generate_ass_file(segments_dict, ass_path, target_w, target_h, style_dict)
+        generate_ass_file(segments_dict, ass_path, target_w, target_h, style_dict, flip_horizontal=flip_horizontal)
         
         srt_filename = f"{req.file_id}_subtitles.srt"
         srt_path = os.path.join(EXPORTS_DIR, srt_filename)
@@ -986,7 +1000,8 @@ def render_video(req: RenderRequest):
         
         ok, err_msg = burn_subtitles_to_video(
             input_path, output_path, ass_path, w, h, style_dict,
-            reframe_target=reframe_target, reframe_mode=reframe_mode
+            reframe_target=reframe_target, reframe_mode=reframe_mode,
+            flip_horizontal=flip_horizontal
         )
         if not ok:
             return JSONResponse(status_code=500, content={"success": False, "detail": f"Rendering failed: {err_msg}"})
@@ -1000,7 +1015,8 @@ def render_video(req: RenderRequest):
             "reframe_target": reframe_target,
             "reframe_mode": reframe_mode,
             "target_width": target_w,
-            "target_height": target_h
+            "target_height": target_h,
+            "flip_horizontal": flip_horizontal
         }
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "detail": f"Render error: {str(e)}"})
@@ -1072,6 +1088,7 @@ def load_video_project(file_id: str):
     target_lang = "vi"
     reframe_target = "original"
     reframe_mode = "blur"
+    flip_horizontal = False
     if os.path.exists(state_path):
         try:
             with open(state_path, "r", encoding="utf-8") as f:
@@ -1081,6 +1098,7 @@ def load_video_project(file_id: str):
                 target_lang = sdata.get("target_lang", "vi")
                 reframe_target = sdata.get("reframe_target", "original")
                 reframe_mode = sdata.get("reframe_mode", "blur")
+                flip_horizontal = sdata.get("flip_horizontal", False)
         except Exception as e:
             print(f"Error reading state: {e}")
     if not segments and os.path.exists(transcript_path):
@@ -1110,7 +1128,8 @@ def load_video_project(file_id: str):
         "style": style,
         "target_lang": target_lang,
         "reframe_target": reframe_target,
-        "reframe_mode": reframe_mode
+        "reframe_mode": reframe_mode,
+        "flip_horizontal": flip_horizontal
     }
 
 @app.get("/")
