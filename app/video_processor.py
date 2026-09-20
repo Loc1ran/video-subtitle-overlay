@@ -134,6 +134,59 @@ def seconds_to_srt_time(seconds: float) -> str:
         millis = 999
     return f"{hours:02d}:{mins:02d}:{secs:02d},{millis:03d}"
 
+def _est_text_width(line: str, font_size: float) -> float:
+    """Rough rendered-width estimate in pixels: CJK glyphs ~1.0em, latin ~0.56em."""
+    w = 0.0
+    for ch in line:
+        w += font_size * (1.0 if ord(ch) >= 0x2E80 else 0.56)
+    return w
+
+
+def _wrap_line_to_width(line: str, font_size: float, max_width: float) -> List[str]:
+    """Greedy word-wrap so each rendered line stays within max_width.
+    CJK characters may break anywhere; latin text breaks on spaces."""
+    if _est_text_width(line, font_size) <= max_width:
+        return [line]
+    tokens = []
+    buf = ""
+    for ch in line:
+        if ord(ch) >= 0x2E80 or ch == " ":
+            if buf:
+                tokens.append(buf)
+                buf = ""
+            tokens.append(ch)
+        else:
+            buf += ch
+    if buf:
+        tokens.append(buf)
+    wrapped, cur = [], ""
+    for tok in tokens:
+        cand = cur + tok
+        if cur.strip() and _est_text_width(cand.rstrip(), font_size) > max_width:
+            wrapped.append(cur.rstrip())
+            cur = "" if tok == " " else tok
+        else:
+            cur = cand
+    if cur.strip():
+        wrapped.append(cur.strip())
+    return wrapped or [line]
+
+
+def _fit_lines_to_width(lines: List[str], font_size: int, max_width: float, min_font_size: int) -> Tuple[List[str], int]:
+    """Wrap lines to fit max_width; shrink the font if unbreakable text still overflows."""
+    fs = font_size
+    wrapped = lines
+    for _ in range(8):
+        wrapped = []
+        for ln in lines:
+            wrapped.extend(_wrap_line_to_width(ln, fs, max_width))
+        longest = max((_est_text_width(l, fs) for l in wrapped), default=0)
+        if longest <= max_width or fs <= min_font_size:
+            break
+        fs = max(min_font_size, int(fs * max_width / max(1, longest)))
+    return wrapped, fs
+
+
 def generate_ass_file(
     segments: List[Dict],
     output_ass_path: str,
@@ -214,6 +267,8 @@ def generate_ass_file(
         elif explicit_anchor in [r"\an6", "right"]:
             anchor = r"\an4" if flip_horizontal else r"\an6"
         else:
+            anchor = r"\an5"
+        if not re.fullmatch(r"\\an[1-9]", anchor):
             anchor = r"\an5"
 
         is_title = seg_y < int(video_height * 0.70)
@@ -349,6 +404,28 @@ def generate_ass_file(
         is_dialogue = not e["is_title"] and not e["is_side_callout"] and e["y"] >= int(video_height * 0.70)
         effective_mask_mode = mask_mode if is_dialogue else ("outline" if mask_mode == "outline" else "box")
 
+        # ── Fit text inside the frame ─────────────────────────────────────────
+        # WrapStyle 2 / \q2 disables libass wrapping, so long lines (common on
+        # narrow 9:16 canvases) would be clipped at the frame edges. Wrap each
+        # line to the width available from its anchor, and shrink the font when
+        # a single unbreakable word still overflows.
+        edge_margin = int(video_width * 0.03)
+        if e["anchor"] == r"\an4":       # left edge anchored at x, grows right
+            avail_w = video_width - e["x"] - edge_margin
+        elif e["anchor"] == r"\an6":     # right edge anchored at x, grows left
+            avail_w = e["x"] - edge_margin
+        else:                            # centered at x
+            avail_w = 2 * min(e["x"], video_width - e["x"])
+        avail_w = min(avail_w, int(video_width * 0.94))
+        text_max_w = avail_w - (pad_w * 2 if effective_mask_mode == "box" else edge_margin)
+        text_max_w = max(int(80 * scale), text_max_w)
+        lines, seg_font_size = _fit_lines_to_width(
+            lines, seg_font_size, text_max_w, max(10, int(9 * scale))
+        )
+        line_count = len(lines)
+        max_line_chars = max(len(l) for l in lines) if lines else 1
+        clean_text = "\\N".join(lines)
+
         if effective_mask_mode == "box":
             char_w = seg_font_size * (0.95 if has_cjk else 0.52)
             natural_w = int(max_line_chars * char_w + pad_w * 2)
@@ -378,14 +455,25 @@ def generate_ass_file(
 
             rect_path = make_rounded_rect_path(box_w, box_h, r)
 
+            # The box is always drawn \an5-centered; shift its center so it covers
+            # side-anchored text (\an4 grows right from x, \an6 grows left from x).
+            if e["anchor"] == r"\an4":
+                box_cx = e["x"] - pad_w + box_w // 2
+            elif e["anchor"] == r"\an6":
+                box_cx = e["x"] + pad_w - box_w // 2
+            else:
+                box_cx = e["x"]
+            half_w = box_w // 2
+            box_cx = max(half_w + edge_margin, min(video_width - half_w - edge_margin, box_cx))
+
             bord_tag = f"\\3c{outline_bgr}\\3a&H00&\\bord{outline_w}" if outline_w > 0 else "\\bord0"
-            box_tag = f"\\an5\\pos({e['x']},{e['y']})\\1c{bg_bgr}\\1a{bg_alpha}{bord_tag}\\shad0\\p1"
+            box_tag = f"\\an5\\pos({box_cx},{e['y']})\\1c{bg_bgr}\\1a{bg_alpha}{bord_tag}\\shad0\\p1"
             ass_lines.append(
                 f"Dialogue: 0,{start_time},{end_time},CustomStyle,,0,0,0,,{{{box_tag}}}{rect_path}{{\\p0}}"
             )
 
-            # Layer 1: Text centered perfectly on top (with \q2 to prevent line wrapping)
-            txt_tag = f"\\an5\\pos({e['x']},{e['y']})\\c{text_bgr}\\1a&H00&\\bord0\\shad0\\fs{seg_font_size}\\fn{font_name}\\b{bold}\\q2"
+            # Layer 1: Text on top (with \q2 to prevent line wrapping)
+            txt_tag = f"{e['anchor']}\\pos({e['x']},{e['y']})\\c{text_bgr}\\1a&H00&\\bord0\\shad0\\fs{seg_font_size}\\fn{font_name}\\b{bold}\\q2"
             ass_lines.append(
                 f"Dialogue: 1,{start_time},{end_time},CustomStyle,,0,0,0,,{{{txt_tag}}}{clean_text}"
             )
@@ -398,14 +486,14 @@ def generate_ass_file(
                 f"Dialogue: 0,{start_time},{end_time},CustomStyle,,0,0,0,,{{{bar_tag}}}{bar_path}{{\\p0}}"
             )
 
-            txt_tag = f"\\an5\\pos({e['x']},{e['y']})\\c{text_bgr}\\1a&H00&\\bord0\\shad0\\fs{seg_font_size}\\fn{font_name}\\b{bold}"
+            txt_tag = f"{e['anchor']}\\pos({e['x']},{e['y']})\\c{text_bgr}\\1a&H00&\\bord0\\shad0\\fs{seg_font_size}\\fn{font_name}\\b{bold}"
             ass_lines.append(
                 f"Dialogue: 1,{start_time},{end_time},CustomStyle,,0,0,0,,{{{txt_tag}}}{clean_text}"
             )
 
         else:   # "outline"
             bord_tag = f"\\3c{outline_bgr}\\3a&H00&\\bord{max(1, outline_w)}" if outline_w > 0 else "\\bord2"
-            txt_tag = f"\\an5\\pos({e['x']},{e['y']})\\c{text_bgr}\\1a&H00&{bord_tag}\\shad1\\fs{seg_font_size}\\fn{font_name}\\b{bold}"
+            txt_tag = f"{e['anchor']}\\pos({e['x']},{e['y']})\\c{text_bgr}\\1a&H00&{bord_tag}\\shad1\\fs{seg_font_size}\\fn{font_name}\\b{bold}"
             ass_lines.append(
                 f"Dialogue: 1,{start_time},{end_time},CustomStyle,,0,0,0,,{{{txt_tag}}}{clean_text}"
             )
