@@ -129,7 +129,7 @@ def test_burn_subtitles_with_reframe():
         subprocess.run([
             "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25",
             "-t", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p", input_vid
-        ], check=True, capture_output=True)
+        ], check=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
         segments = [{"id": 1, "start": 0.0, "end": 1.0, "text": "Reframe Test", "custom_text": "Reframe Test"}]
         generate_ass_file(segments, ass_path, 1080, 1920, {"font_size": 28, "mask_mode": "box"})
@@ -201,7 +201,7 @@ def test_burn_subtitles_with_flip():
         subprocess.run([
             "ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=640x360:rate=25",
             "-t", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p", input_vid
-        ], check=True, capture_output=True)
+        ], check=True, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         segments = [{"id": 1, "start": 0.0, "end": 1.0, "text": "Flip Test", "custom_text": "Flip Test", "x_pct": 25.0}]
         generate_ass_file(segments, ass_path, 640, 360, {"font_size": 24, "mask_mode": "box"}, flip_horizontal=True)

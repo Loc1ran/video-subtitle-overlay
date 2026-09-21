@@ -14,7 +14,7 @@ def get_video_info(video_path: str) -> Dict:
         "-show_streams",
         video_path
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     if result.returncode != 0:
         return {"width": 1920, "height": 1080, "duration": 0, "fps": 30}
     
@@ -612,7 +612,7 @@ def burn_subtitles_to_video(
         ])
     
     print("Running FFmpeg burn command:", " ".join(cmd))
-    res = subprocess.run(cmd, cwd=work_dir, capture_output=True, text=True)
+    res = subprocess.run(cmd, cwd=work_dir, stdin=subprocess.DEVNULL, capture_output=True, text=True)
     
     if res.returncode != 0:
         print("FFmpeg Error:", res.stderr)

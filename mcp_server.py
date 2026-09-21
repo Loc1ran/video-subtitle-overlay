@@ -3,6 +3,7 @@ import sys
 import json
 from typing import List, Dict, Optional, Any
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 # Initialize FastMCP Server
 mcp = FastMCP("video-subtitle-studio")
@@ -25,7 +26,12 @@ def find_video_path(file_id: str) -> Optional[str]:
         return exact
     return None
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=True,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+))
 def list_videos() -> str:
     """Lists all videos uploaded to the Video Subtitle Studio with their IDs, filenames, size, and status."""
     videos = []
@@ -67,7 +73,12 @@ def list_videos() -> str:
                 })
     return json.dumps(videos, indent=2, ensure_ascii=False)
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+))
 def get_transcript(file_id: str, model_size: str = "tiny", language: str = "auto") -> str:
     """
     Retrieves the transcript segments of a video. 
@@ -99,7 +110,12 @@ def get_transcript(file_id: str, model_size: str = "tiny", language: str = "auto
         
     return json.dumps(result, ensure_ascii=False, indent=2)
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+))
 def update_subtitles(
     file_id: str,
     segments_json: str,
@@ -110,7 +126,8 @@ def update_subtitles(
     flip_horizontal: bool = False
 ) -> str:
     """
-    Updates the video subtitles with high-quality AI translations and generates the ASS and SRT subtitle files.
+    Updates the video subtitles with high-quality AI translations. Writes the project
+    state file and generates the ASS and SRT subtitle files on disk.
     - file_id: ID of the video project.
     - segments_json: JSON string containing a list of segments with keys: id, start, end, text, custom_text.
     - pos_y_pct: Vertical position in % (default 86.5% to perfectly cover speech subtitles).
@@ -178,7 +195,12 @@ def update_subtitles(
         "reframe_target": reframe_target
     }, indent=2)
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(
+    readOnlyHint=False,
+    destructiveHint=False,
+    idempotentHint=True,
+    openWorldHint=False,
+))
 def render_subtitled_video(
     file_id: str,
     pos_y_pct: float = 86.5,

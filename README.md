@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/Loc1ran/video-subtitle-overlay/actions/workflows/ci.yml/badge.svg)](https://github.com/Loc1ran/video-subtitle-overlay/actions/workflows/ci.yml)
+[![M8ven Score](https://m8ven.ai/badge/mcp/loc1ran/video-subtitle-overlay)](https://m8ven.ai/mcp/loc1ran/video-subtitle-overlay)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-brightgreen.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/Frontend-React_19-61DAFB.svg)](https://react.dev/)
