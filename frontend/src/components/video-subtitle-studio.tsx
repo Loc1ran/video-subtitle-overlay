@@ -2768,7 +2768,10 @@ export function VideoSubtitleStudio() {
                   boxRadius = 5;
                 } else if (isTitleHeader) {
                   const maxHeaderWidth = hasSimultaneousSideStickers ? 180 : 320;
-                  const maxLineChars = Math.max(...textToDisplay.split("\n").map((l) => l.length), 1);
+                  const maxLineChars = Math.max(
+                    ...textToDisplay.split("\n").map((l) => l.length),
+                    1,
+                  );
                   const targetFs = Math.floor(maxHeaderWidth / (maxLineChars * 0.52 + 1.5));
                   const titleBaseFs = Math.max(16, Math.min(22, Math.round(fontSize * 1.1)));
                   currentFontSize = Math.max(11, Math.min(titleBaseFs, targetFs));
