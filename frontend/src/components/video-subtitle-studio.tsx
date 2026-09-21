@@ -199,9 +199,12 @@ function formatTime(value: number, frames = false) {
 function hexToRgb(hex: string): string {
   const clean = (hex || "#000000").replace("#", "");
   if (clean.length === 3) {
-    const r = parseInt(clean[0] + clean[0], 16) || 0;
-    const g = parseInt(clean[1] + clean[1], 16) || 0;
-    const b = parseInt(clean[2] + clean[2], 16) || 0;
+    const c0 = clean[0] || "0";
+    const c1 = clean[1] || "0";
+    const c2 = clean[2] || "0";
+    const r = parseInt(c0 + c0, 16) || 0;
+    const g = parseInt(c1 + c1, 16) || 0;
+    const b = parseInt(c2 + c2, 16) || 0;
     return `${r}, ${g}, ${b}`;
   }
   const r = parseInt(clean.substring(0, 2), 16) || 0;
@@ -430,6 +433,7 @@ export function VideoSubtitleStudio() {
       for (let i = 0; i < sortedUpper.length - 1; i++) {
         const top = sortedUpper[i];
         const btm = sortedUpper[i + 1];
+        if (!top || !btm) continue;
         // Only apply vertical clearance if they are actually in the same horizontal column (within 20% X)
         const isHorizontallyOverlapping = Math.abs((top.x ?? 50) - (btm.x ?? 50)) < 22.0;
         if (!isHorizontallyOverlapping) continue;
@@ -506,6 +510,9 @@ export function VideoSubtitleStudio() {
         setVideoNaturalAspect(`${data.info.width} / ${data.info.height}`);
       }
 
+      const loadedOutline = (data.style && data.style.outline_color) || "#000000";
+      const savedBg = (data.style && data.style.bg_color) || "#000000";
+
       if (data.style) {
         if (data.style.font_size) setFontSize(Number(data.style.font_size));
         if (data.style.bg_padding) setPadding(Number(data.style.bg_padding));
@@ -524,8 +531,6 @@ export function VideoSubtitleStudio() {
           );
         }
         if (data.style.bold !== undefined) setBold(Boolean(data.style.bold));
-        const loadedOutline = data.style.outline_color || "#000000";
-        const savedBg = data.style.bg_color || "#000000";
         setOutlineColor(loadedOutline);
         setBgColor(savedBg);
         if (data.style.outline_width !== undefined)
@@ -2735,7 +2740,8 @@ export function VideoSubtitleStudio() {
                         let bestDist = 9999;
                         let running = 0;
                         for (let i = 0; i < words.length - 1; i++) {
-                          running += words[i].length + 1;
+                          const w = words[i] || "";
+                          running += w.length + 1;
                           const dist = Math.abs(running - mid);
                           if (dist < bestDist) {
                             bestDist = dist;
@@ -2755,6 +2761,7 @@ export function VideoSubtitleStudio() {
                 }
                 const isMultiLineTitle = isTitleHeader && formattedTitle.includes("\n");
                 const textToDisplay = isTitleHeader ? formattedTitle : textToShow;
+                const hasExplicitNewline = textToDisplay.includes("\n");
 
                 let currentFontSize: number;
                 let padVert: number;
@@ -4064,7 +4071,7 @@ export function VideoSubtitleStudio() {
                   <div>
                     <div className="font-bold text-xs">Original</div>
                     <div className="text-[10px] text-muted-foreground font-mono truncate">
-                      {videoResolution ? videoResolution.split("·")[0].trim() : "Native AR"}
+                      {videoResolution ? videoResolution.split("·")[0]?.trim() : "Native AR"}
                     </div>
                   </div>
                 </button>

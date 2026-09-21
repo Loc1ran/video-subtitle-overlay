@@ -202,7 +202,7 @@ export function buildLocalizedAiPrompt(
   linesText: string,
 ): string {
   const code = (targetLangCode || "en").toLowerCase();
-  const template = LOCALIZED_PROMPTS[code] || LOCALIZED_PROMPTS.en;
+  const template: PromptTemplate = LOCALIZED_PROMPTS[code] ?? LOCALIZED_PROMPTS["en"]!;
 
   if (thinkingMode) {
     return `${template.thinkingHeader}\n${template.thinkingRules.join("\n")}\n\n${template.thinkingOutput}\n\n${template.originalLinesHeader}\n${linesText}`;

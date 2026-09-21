@@ -1,6 +1,6 @@
 // Video Subtitle Studio - AI Assistant Content Script (Widget-Free Edition)
 // Seamless bridge for ChatGPT (chatgpt.com), DeepSeek (chat.deepseek.com), Gemini (gemini.google.com), Claude (claude.ai)
-// Operates silently via extension popup or background messages without on-page widgets or visual clutter.
+// Operates silently via extension popup or background messages with ZERO on-page widgets or visual clutter.
 
 (function () {
   'use strict';
@@ -24,15 +24,19 @@
   function requestApi(action, payload = {}) {
     return new Promise((resolve, reject) => {
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-        chrome.runtime.sendMessage({ action, payload }, (res) => {
-          if (chrome.runtime.lastError) {
-            directFetch(action, payload).then(resolve).catch(reject);
-          } else if (res && res.success) {
-            resolve(res.data);
-          } else {
-            reject(new Error((res && res.error) || 'Extension communication failed'));
-          }
-        });
+        try {
+          chrome.runtime.sendMessage({ action, payload }, (res) => {
+            if (chrome.runtime.lastError) {
+              directFetch(action, payload).then(resolve).catch(reject);
+            } else if (res && res.success) {
+              resolve(res.data);
+            } else {
+              directFetch(action, payload).then(resolve).catch(reject);
+            }
+          });
+        } catch (e) {
+          directFetch(action, payload).then(resolve).catch(reject);
+        }
       } else {
         directFetch(action, payload).then(resolve).catch(reject);
       }
@@ -42,6 +46,15 @@
   async function directFetch(action, payload) {
     if (action === 'CHECK_CONNECTION' || action === 'GET_JOB') {
       const res = await fetch(`${API_BASE}/api/ai-job`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    }
+    if (action === 'CLAIM_JOB') {
+      const res = await fetch(`${API_BASE}/api/ai-job/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     }
@@ -677,6 +690,9 @@
   // 7. Message Listener for Popup & Background triggers (NO WIDGET INJECTED)
   if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
+      if (!req || typeof req !== 'object' || !req.action) {
+        return false;
+      }
       if (req.action === 'PING') {
         sendResponse({ success: true, provider, isProcessing });
         return false;
@@ -706,6 +722,8 @@
         })();
         return true; // Keep message channel open for async response
       }
+
+      return false;
     });
   }
 
