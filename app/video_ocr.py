@@ -254,9 +254,10 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
         if not is_dialogue:
             if dur < 0.30 or len(s["text"].strip()) < 1:
                 continue
-            # Must contain CJK characters to eliminate Latin clothing logos (e.g. Yonex shirt)
+            # Must contain CJK characters OR digits/clocks (e.g. 11:59, 12:00) to eliminate Latin clothing logos (e.g. Yonex shirt)
             has_cjk = any('\u4e00' <= c <= '\u9fff' for c in s["text"])
-            if not has_cjk:
+            has_digits = bool(re.search(r'\d', s["text"])) and len(s["text"].strip()) >= 2
+            if not (has_cjk or has_digits):
                 continue
             # Filter isolated 1-character visual noise on clothes/backgrounds unless sustained
             if len(s["text"].strip()) <= 1 and (s["y_pct"] > 30.0 or dur < 1.2):
@@ -278,10 +279,13 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
         final_x = 50.0 if is_dialogue else s["x_pct"]
 
         # Middle reaction stickers / callouts (35% <= Y <= 68%) that are roughly centered (38-62%)
-        # should snap to center (50%) and expand width to fully cover trailing punctuation (e.g. ！！！)
+        # should snap to center (50%) and expand width appropriately
         if not is_dialogue and 35.0 <= final_y <= 68.0 and 38.0 <= final_x <= 62.0:
             final_x = 50.0
-            med_w = max(med_w + 200, 750)
+            if len(clean_s_text) > 4 and not re.match(r'^[\d:.\s]+$', clean_s_text):
+                med_w = max(med_w + 120, 650)
+            else:
+                med_w = max(med_w + 50, 220)
 
         # Lead start timestamp by 0.12s to compensate for frame sampling interval quantization
         # so the overlay appears synchronously with the video's subtitle onset
@@ -342,7 +346,7 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
             dur2 = s2["end"] - s2["start"]
             min_dur = min(dur1, dur2)
             if min_dur > 0 and (overlap / min_dur >= 0.70 or overlap >= 0.50):
-                is_same_col = abs(s1["x_pct"] - s2["x_pct"]) <= 15.0
+                is_same_col = abs(s1["x_pct"] - s2["x_pct"]) <= 6.5
                 min_y_dist = min(abs(s2["y_pct"] - g["y_pct"]) for g in group)
                 if is_same_col and 2.0 <= min_y_dist <= 10.0:
                     group.append(s2)
@@ -529,16 +533,40 @@ def extract_subtitles_from_video_ocr(video_path: str, sample_interval: float = 0
             try:
                 # 0.70x scaling provides fast inference and high accuracy for screen titles/callouts
                 u_scaled = cv2.resize(u_roi, None, fx=0.70, fy=0.70, interpolation=cv2.INTER_AREA)
+                
+                # Check for vibrant colored text (memes, hooks, colored titles with outline)
+                hsv_u = cv2.cvtColor(u_roi, cv2.COLOR_BGR2HSV)
+                colored_mask = cv2.inRange(hsv_u, np.array([0, 90, 110]), np.array([180, 255, 255]))
+                has_vibrant = np.count_nonzero(colored_mask) > 350
+
+                all_res_u = []
+                if has_vibrant:
+                    colored_inv = cv2.bitwise_not(colored_mask)
+                    colored_scaled = cv2.resize(colored_inv, None, fx=0.70, fy=0.70)
+                    res_colored = reader.readtext(colored_scaled)
+                    for r in res_colored:
+                        all_res_u.append((r[0], r[1], r[2], True))
+
                 res_u = reader.readtext(u_scaled)
-                for bbox, text, conf in res_u:
+                for r in res_u:
+                    all_res_u.append((r[0], r[1], r[2], False))
+
+                for bbox, text, conf, is_colored in all_res_u:
+                    # When vibrant colored title subtitles are present in the frame, suppress weak non-colored background clutter
+                    if has_vibrant and not is_colored and conf < 0.60:
+                        continue
                     clean_t = clean_ocr_text(text)
                     clean_t = re.sub(r'(?<=[\u4e00-\u9fff])\-(?=[\u4e00-\u9fff])', '一', clean_t)
                     clean_t = re.sub(r'^[_\-*~]+', '', clean_t).strip()
+                    clean_t = re.sub(r'(?<=还有)[ :.\-~*]+(?=分钟)', '一', clean_t)
                     cjk_len = len(re.findall(r'[\u4e00-\u9fff]', clean_t))
-                    min_conf = 0.001 if cjk_len >= 1 else 0.35
+                    
+                    min_conf = 0.20 if is_colored else (0.15 if cjk_len >= 2 else 0.35)
                     if conf < min_conf:
                         continue
                     if not re.search(r'[\u4e00-\u9fff]', clean_t) and not re.search(r'[a-zA-Z0-9]', clean_t):
+                        continue
+                    if len(clean_t) == 1 and not re.search(r'[\u4e00-\u9fff]', clean_t):
                         continue
                     ys = [int(p[1] / 0.70) + u_top for p in bbox]
                     xs = [int(p[0] / 0.70) for p in bbox]
@@ -549,15 +577,26 @@ def extract_subtitles_from_video_ocr(video_path: str, sample_interval: float = 0
                         continue
                     y_pct = round(sum(ys) / len(ys) / frame_h * 100.0, 1)
                     x_pct = round(sum(xs) / len(xs) / frame_w * 100.0, 1)
-                    raw_detections.append({
-                        "time": t_sec,
-                        "text": clean_t,
-                        "x_pct": x_pct,
-                        "y_pct": y_pct,
-                        "box_w": box_w,
-                        "box_h": box_h,
-                        "region": "upper"
-                    })
+
+                    is_dup = False
+                    for existing in raw_detections:
+                        if existing.get("region") == "upper" and existing["time"] == t_sec:
+                            if abs(existing["x_pct"] - x_pct) < 8.0 and abs(existing["y_pct"] - y_pct) < 3.2:
+                                is_dup = True
+                                break
+                            elif abs(existing["x_pct"] - x_pct) < 12.0 and text_similarity(existing["text"], clean_t) > 0.4:
+                                is_dup = True
+                                break
+                    if not is_dup:
+                        raw_detections.append({
+                            "time": t_sec,
+                            "text": clean_t,
+                            "x_pct": x_pct,
+                            "y_pct": y_pct,
+                            "box_w": box_w,
+                            "box_h": box_h,
+                            "region": "upper"
+                        })
             except Exception:
                 pass
 
