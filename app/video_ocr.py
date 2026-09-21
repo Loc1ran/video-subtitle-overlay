@@ -279,13 +279,11 @@ def group_multi_area_detections(raw_detections: List[Dict], sample_interval: flo
         final_x = 50.0 if is_dialogue else s["x_pct"]
 
         # Middle reaction stickers / callouts (35% <= Y <= 68%) that are roughly centered (38-62%)
-        # should snap to center (50%) and expand width appropriately
+        # should snap to center (50%) and retain a clean snug bounding box
         if not is_dialogue and 35.0 <= final_y <= 68.0 and 38.0 <= final_x <= 62.0:
             final_x = 50.0
-            if len(clean_s_text) > 4 and not re.match(r'^[\d:.\s]+$', clean_s_text):
-                med_w = max(med_w + 120, 650)
-            else:
-                med_w = max(med_w + 50, 220)
+            med_w = int(med_w + 24)
+            med_h = int(med_h + 10)
 
         # Lead start timestamp by 0.12s to compensate for frame sampling interval quantization
         # so the overlay appears synchronously with the video's subtitle onset

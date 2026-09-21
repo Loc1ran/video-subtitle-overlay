@@ -217,3 +217,96 @@ def test_burn_subtitles_with_flip():
         assert info["width"] == 640
         assert info["height"] == 360
 
+
+def test_title_font_size_and_snug_box():
+    # Verify title text like '12:00' has prominent font size (> 45px) on 1080p and snug box width
+    segments = [
+        {
+            "id": 1,
+            "start": 0.0,
+            "end": 5.0,
+            "text": "12:00",
+            "custom_text": "12:00",
+            "x_pct": 50.0,
+            "y_pct": 35.0,
+            "box_w": 220,
+            "box_h": 65
+        }
+    ]
+    style_config = {
+        "font_size": 28,
+        "mask_mode": "box",
+        "bg_padding": 12,
+    }
+
+    with tempfile.NamedTemporaryFile(suffix=".ass", delete=False) as tf:
+        ass_path = tf.name
+
+    try:
+        generate_ass_file(segments, ass_path, video_width=1080, video_height=1920, style_config=style_config)
+        with open(ass_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        import re
+        # Find font size \\fsXX
+        fs_match = re.search(r"\\fs(\d+)", content)
+        assert fs_match is not None, "Font size tag \\fs not found"
+        fs = int(fs_match.group(1))
+        # Previously was capped at 34px; now should be prominent (>= 48px)
+        assert fs >= 48, f"Title font size should be >= 48px, got {fs}px"
+
+        # Find box drawing dimensions from rect path: l {w} 0 ...
+        # Path starts with m {r} 0 l {w-r} 0 ... or m 0 0 l {w} 0
+        w_match = re.search(r"l\s+(\d+)\s+0", content)
+        assert w_match is not None, "Box width not found in ASS path"
+        w_drawn = int(w_match.group(1))
+        # The box should be snug (~200-260px), NOT ballooned to 340px or 730px
+        assert w_drawn <= 260, f"Box width should be snug (<= 260), got {w_drawn}"
+    finally:
+        if os.path.exists(ass_path):
+            os.remove(ass_path)
+
+
+def test_title_multiline_auto_wrap_preserves_font_size():
+    # Long title line should auto-wrap into 2 lines so font size stays prominent
+    long_text = "When there's only one minute left before class ends\n11:59"
+    segments = [
+        {
+            "id": 1,
+            "start": 0.0,
+            "end": 5.0,
+            "text": long_text,
+            "custom_text": long_text,
+            "x_pct": 50.0,
+            "y_pct": 34.6,
+            "box_w": 500,
+            "box_h": 140
+        }
+    ]
+    style_config = {
+        "font_size": 28,
+        "mask_mode": "box",
+    }
+
+    with tempfile.NamedTemporaryFile(suffix=".ass", delete=False) as tf:
+        ass_path = tf.name
+
+    try:
+        generate_ass_file(segments, ass_path, video_width=1080, video_height=1920, style_config=style_config)
+        with open(ass_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        import re
+        fs_match = re.search(r"\\fs(\d+)", content)
+        assert fs_match is not None
+        fs = int(fs_match.group(1))
+        # Because of multi-line balancing, fs should be >= 44px (not clamped to 33px)
+        assert fs >= 44, f"Auto-wrapped title font size should be >= 44px, got {fs}px"
+
+        # Verify newline exists separating the long line
+        assert "When there's only one\\Nminute left before class ends\\N11:59" in content
+    finally:
+        if os.path.exists(ass_path):
+            os.remove(ass_path)
+
+

@@ -2722,38 +2722,38 @@ export function VideoSubtitleStudio() {
 
                 const yPos = segment.displayY !== undefined ? segment.displayY : segment.y;
 
-                const hasExplicitNewline = textToShow.includes("\n");
+                const lines = textToShow.split(/\r?\n/);
                 let formattedTitle = textToShow;
-                if (
-                  isTitleHeader &&
-                  !hasExplicitNewline &&
-                  yPos <= 28 &&
-                  (textToShow.length > 28 || (segment.boxH && segment.boxH > 100))
-                ) {
-                  const words = textToShow.split(" ");
-                  if (words.length >= 3) {
-                    const mid = Math.floor(textToShow.length / 2);
-                    let bestIdx = -1;
-                    let bestDist = 9999;
-                    let running = 0;
-                    for (let i = 0; i < words.length - 1; i++) {
-                      running += words[i].length + 1;
-                      const dist = Math.abs(running - mid);
-                      if (dist < bestDist) {
-                        bestDist = dist;
-                        bestIdx = i;
+                if (isTitleHeader) {
+                  const balanced: string[] = [];
+                  for (const line of lines) {
+                    if (line.length > 26 && line.includes(" ")) {
+                      const words = line.split(" ");
+                      if (words.length >= 3) {
+                        const mid = Math.floor(line.length / 2);
+                        let bestIdx = -1;
+                        let bestDist = 9999;
+                        let running = 0;
+                        for (let i = 0; i < words.length - 1; i++) {
+                          running += words[i].length + 1;
+                          const dist = Math.abs(running - mid);
+                          if (dist < bestDist) {
+                            bestDist = dist;
+                            bestIdx = i;
+                          }
+                        }
+                        if (bestIdx >= 0) {
+                          balanced.push(words.slice(0, bestIdx + 1).join(" "));
+                          balanced.push(words.slice(bestIdx + 1).join(" "));
+                          continue;
+                        }
                       }
                     }
-                    if (bestIdx >= 0) {
-                      formattedTitle =
-                        words.slice(0, bestIdx + 1).join(" ") +
-                        "\n" +
-                        words.slice(bestIdx + 1).join(" ");
-                    }
+                    balanced.push(line);
                   }
+                  formattedTitle = balanced.join("\n");
                 }
-                const isMultiLineTitle =
-                  isTitleHeader && (hasExplicitNewline || formattedTitle.includes("\n"));
+                const isMultiLineTitle = isTitleHeader && formattedTitle.includes("\n");
                 const textToDisplay = isTitleHeader ? formattedTitle : textToShow;
 
                 let currentFontSize: number;
@@ -2767,11 +2767,12 @@ export function VideoSubtitleStudio() {
                   padHoriz = 6;
                   boxRadius = 5;
                 } else if (isTitleHeader) {
-                  const maxHeaderChars = hasSimultaneousSideStickers ? 130 : 250;
-                  const isLong = textToDisplay.length > 20;
-                  const targetFs = Math.floor(maxHeaderChars / (textToDisplay.length * 0.52 + 1.5));
-                  currentFontSize = Math.max(9, Math.min(isLong ? 11 : 13, targetFs));
-                  padVert = isMultiLineTitle ? 6 : 4;
+                  const maxHeaderWidth = hasSimultaneousSideStickers ? 180 : 320;
+                  const maxLineChars = Math.max(...textToDisplay.split("\n").map((l) => l.length), 1);
+                  const targetFs = Math.floor(maxHeaderWidth / (maxLineChars * 0.52 + 1.5));
+                  const titleBaseFs = Math.max(16, Math.min(22, Math.round(fontSize * 1.1)));
+                  currentFontSize = Math.max(11, Math.min(titleBaseFs, targetFs));
+                  padVert = isMultiLineTitle ? 5 : 4;
                   padHoriz = 10;
                   boxRadius = 6;
                 } else {
@@ -2842,7 +2843,6 @@ export function VideoSubtitleStudio() {
                               ? `${padding}px 16px`
                               : "4px 8px",
                         minWidth: effectiveMaskMode === "Full-width bar" ? "100%" : undefined,
-                        minHeight: isTitleHeader ? (isMultiLineTitle ? "54px" : "24px") : undefined,
                         borderRadius:
                           effectiveMaskMode === "Fitted box"
                             ? boxRadius >= 50

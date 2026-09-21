@@ -339,25 +339,30 @@ def generate_ass_file(
         raw_box_w = seg.get("box_w")
         raw_box_h = seg.get("box_h")
 
-        # If it's a top title card (y <= 28%) and text is on 1 line, but original was multi-line (box_h > 100) or text is long (> 28 chars), auto-balance into 2 lines!
-        is_top_title = e["is_title"] and not e["is_side_callout"] and e["y"] <= int(video_height * 0.28)
-        if is_top_title and len(lines) == 1 and (len(lines[0]) > 28 or (raw_box_h and raw_box_h > 100)):
-            words = lines[0].split(" ")
-            if len(words) >= 3:
-                mid = len(lines[0]) // 2
-                best_idx = -1
-                best_dist = 9999
-                running = 0
-                for i, w in enumerate(words[:-1]):
-                    running += len(w) + 1
-                    dist = abs(running - mid)
-                    if dist < best_dist:
-                        best_dist = dist
-                        best_idx = i
-                if best_idx >= 0:
-                    line1 = " ".join(words[:best_idx + 1])
-                    line2 = " ".join(words[best_idx + 1:])
-                    lines = [line1, line2]
+        # For title cards, auto-balance any line that is too long (> 26 chars) into 2 lines so font size remains prominent
+        if e["is_title"] and not e["is_side_callout"]:
+            balanced_lines = []
+            for line_item in lines:
+                if len(line_item) > 26 and " " in line_item:
+                    words = line_item.split(" ")
+                    if len(words) >= 3:
+                        mid = len(line_item) // 2
+                        best_idx = -1
+                        best_dist = 9999
+                        running = 0
+                        for i, w in enumerate(words[:-1]):
+                            running += len(w) + 1
+                            dist = abs(running - mid)
+                            if dist < best_dist:
+                                best_dist = dist
+                                best_idx = i
+                        if best_idx >= 0:
+                            line1 = " ".join(words[:best_idx + 1])
+                            line2 = " ".join(words[best_idx + 1:])
+                            balanced_lines.extend([line1, line2])
+                            continue
+                balanced_lines.append(line_item)
+            lines = balanced_lines
 
         line_count = len(lines)
         max_line_chars = max(len(l) for l in lines) if lines else 1
@@ -371,17 +376,18 @@ def generate_ass_file(
             border_r = int(5 * scale)
             outline_w = max(1, int(1.5 * scale))
         elif e["is_title"]:
-            # Center title header:
+            # Center title header: prominent legible font matching headline style
             if e.get("has_side_callouts"):
                 max_header_w = int(video_width * 0.48)
             else:
                 max_header_w = int(video_width * 0.86)
             char_w_est = 0.95 if has_cjk else 0.52
             target_fs = int(max_header_w / (max(1, max_line_chars) * char_w_est + 1.5))
-            seg_font_size = max(int(10 * scale), min(int(13 * scale), target_fs))
-            pad_h = int(4 * scale)
+            max_title_fs = max(int(18 * scale), min(int(font_size * 1.05), int(22 * scale)))
+            seg_font_size = max(int(11 * scale), min(max_title_fs, target_fs))
+            pad_h = int(5 * scale)
             pad_w = int(10 * scale)
-            border_r = int(6 * scale)
+            border_r = int(7 * scale)
             outline_w = max(1, int(2.0 * scale))
         else:
             # Dialogue
@@ -435,10 +441,9 @@ def generate_ass_file(
                 calc_w = max(natural_w, int(raw_box_w if raw_box_w else 0))
                 calc_h = max(natural_h, int(raw_box_h if raw_box_h else 0))
             elif e["is_title"]:
-                # Always cover the original height raw_box_h so original burned Chinese text NEVER peeks out!
-                min_title_h = int(raw_box_h) if raw_box_h else int(line_count * 32 * scale)
-                target_mask_h = max(natural_h, min_title_h)
-                calc_w = max(natural_w, int(raw_box_w + 80 if raw_box_w else 0))
+                # Cover the original raw_box_h and raw_box_w with clean snug margins so burned Chinese text never peeks out
+                target_mask_h = max(natural_h, int(raw_box_h + 8 * scale) if raw_box_h else natural_h)
+                calc_w = max(natural_w, int(raw_box_w + 12 * scale if raw_box_w else 0))
                 calc_h = max(natural_h, target_mask_h)
             else:
                 calc_w = max(natural_w, int(raw_box_w + 16 if raw_box_w else 0))
